@@ -6,7 +6,8 @@ borrows from two other ports:
 | From | What |
 |---|---|
 | **WWE 2K14 recomp** (Jarrodfeng/wwe2k14-recomp, BSD 3-Clause) | the ReXGlue SDK with its Android support (`patches/rexglue-sdk/full/01-...` up to `73-...`): ARM64 code, Adreno fixes, SDL on Android, custom Vulkan drivers, touch pad, phone frame pacing |
-| **WWE 2K17 Android port** (the same SDK series + `88-...` to `95-...`) | the Linux / GitHub Actions build, the launcher app, touch controls, FPS overlay, driver import, DLC manager, frame generation, screen shapes, Android audio latency fix |
+| **WWE '13 Android port** (dzepdzep/wwe13-recomp-android, BSD 3-Clause) | the app: the WWE-style launcher (PLAY, GRAPHICS, GAME, CONTROLS, SAVES, UPDATES pages, here in WWE 2K15 red), install from your disc image, the touch controls made for WWE games and their layout editor, in-app updates |
+| **WWE 2K17 Android port** (the same SDK series + `88-...` to `95-...`) | the Linux / GitHub Actions build, frame generation, screen shapes, Android audio latency fix, GPU profile, frame pacing, driver loading, DLC / title update install |
 | **WWE 2K15 PC** (`port/`) | the game-specific code: TU4 function hints, 60 FPS entrances, the Create-a-Championship freeze fix (#33), crash guards, text / keyboard hooks, mods folder, ISO + title update loading |
 
 `patches/rexglue-sdk/full/96-wwe2k15-port.diff` holds the WWE 2K15 PC port's SDK patches that the game needs on top
@@ -49,11 +50,14 @@ The first run builds the SDK (long, cached afterwards). The APK lands on the **d
 
 ## 4. On the phone
 
-1. Install the APK, open it, give "All files access".
-2. Pick your WWE 2K15 folder (`default.xex` + `default.xexp`), or an `.iso`. An ISO cannot hold the title update:
-   import the Title Update 4 package (and any DLC packages) in the DLC screen.
-3. Choose touch controls, resolution, GPU profile, driver (Turnip on Adreno) and press PLAY.
-4. Logs: the launcher's COPY LOGS button puts them in `Download/WWE2K15_logs`.
+1. Install the APK and open **WWE 2K15**.
+2. PLAY page: **Install from my disc image (.iso)…** and pick your own WWE 2K15 Xbox 360 image. The game is copied
+   into the app (about 8 GB), so the image can be deleted afterwards. Stopped halfway? Pick it again: it continues.
+3. **Add title update or DLC…**: Title Update 4 (required) and any DLC packs you own (Xbox 360 package files). The game
+   unpacks / installs them itself the next time it starts.
+4. GRAPHICS: resolution, frame rate, GPU profile, driver (the phone's own, or the bundled Turnip). CONTROLS: touch
+   controls (Edit touch layout to move them). Then **PLAY**.
+5. When something breaks: **Save the last game log to Downloads** on the PLAY page, and send the log.
 
 ## "Call to invalid or unregistered function" / "No function registered at ..."
 
@@ -76,5 +80,6 @@ Add the new file to `includes = [...]` in `port/wwe2k15_manifest.example.toml`, 
 
 WWE 2K15 PC port: GPL-3.0 (`LICENSE`). WWE 2K14 port code: BSD 3-Clause, Copyright (c) 2026 Jarrod
 (github.com/Jarrodfeng), full text in `docs/LICENSE_wwe2k14-recomp.txt`; its notices must stay with the files taken from it (the SDK patches, `port/src/android_*.h`,
-`crash_trace.h`, `thread_stats.h`, the Java touch controls and driver loader). Bundled drivers: Turnip (Mesa, MIT),
+`crash_trace.h`, `thread_stats.h`, the driver loader). WWE '13 Android port: BSD 3-Clause, Copyright (c) 2026 dzepdzep,
+`docs/LICENSE_wwe13-recomp-android.txt` (the launcher, touch controls, updater, `port/src/touch_pad.h`). Bundled drivers: Turnip (Mesa, MIT),
 PanVK (MIT, `docs/LICENSE_mali-panvk.txt`). SDL's Java activity: zlib. libadrenotools: BSD-2-Clause.

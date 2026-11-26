@@ -129,6 +129,42 @@ inline void LogInventory(const std::string& label, const std::filesystem::path& 
   for (const auto& f : listed) REXLOG_INFO("[wwe2k15][dlc]   - {}", f);
 }
 
+// A title update package is unpacked into wwe2k15_update_dir (once per package file: a stamp remembers it).
+// WWE 2K15: its default.xexp is what the game's code was recompiled with, so it must be there before the game's
+// paths are chosen; UnpackTitleUpdate() runs from OnConfigurePaths, before the kernel exists (no kernel needed here).
+inline bool UnpackTitleUpdatePackage(const std::filesystem::path& package) {
+  const std::string up = REXCVAR_GET(wwe2k15_update_dir);
+  if (up.empty()) return true;
+  std::error_code fec;
+  const std::filesystem::path stamp = std::filesystem::path(up) / ".unpacked";
+  const std::string want = rex::path_to_utf8(package.filename()) + ":" + std::to_string(std::filesystem::file_size(package, fec));
+  std::string have;
+  std::getline(std::ifstream(stamp), have);
+  if (have == want) return true;
+  REXLOG_INFO("[wwe2k15][dlc] unpacking title update {}", rex::path_to_utf8(package.filename()));
+  std::filesystem::create_directories(up, fec);
+  if (ExtractAll(package, up)) {
+    std::ofstream(stamp) << want;
+    REXLOG_INFO("[wwe2k15][dlc] title update unpacked into {}", up);
+    return true;
+  }
+  REXLOG_ERROR("[wwe2k15][dlc] title update could not be unpacked");
+  return false;
+}
+
+inline void UnpackTitleUpdate() {
+  const std::string dir_s = REXCVAR_GET(wwe2k15_dlc_dir);
+  if (dir_s.empty()) return;
+  std::error_code ec;
+  for (const auto& it : std::filesystem::directory_iterator(std::filesystem::path(dir_s), ec)) {
+    std::error_code fec;
+    if (!it.is_regular_file(fec) || !HasStfsMagic(it.path())) continue;
+    const auto header = rex::filesystem::StfsContainerDevice::ReadPackageHeader(it.path());
+    if (header && header->metadata.content_type == rex::system::XContentType::kInstaller)
+      UnpackTitleUpdatePackage(it.path());
+  }
+}
+
 inline void Sync(const std::filesystem::path& user_data_root) {
   const std::string dir_s = REXCVAR_GET(wwe2k15_dlc_dir);
   if (dir_s.empty()) return;
@@ -152,22 +188,7 @@ inline void Sync(const std::filesystem::path& user_data_root) {
     }
     const rex::system::XContentType type = header->metadata.content_type;
     if (type == rex::system::XContentType::kInstaller) {  // title update
-      const std::string up = REXCVAR_GET(wwe2k15_update_dir);
-      if (up.empty()) continue;
-      const std::filesystem::path stamp = std::filesystem::path(up) / ".unpacked";
-      const std::string want = rex::path_to_utf8(it.path().filename()) + ":" + std::to_string(it.file_size(fec));
-      std::string have;
-      std::ifstream(stamp) >> have;
-      if (have == want) continue;
-      REXLOG_INFO("[wwe2k15][dlc] unpacking title update {}", rex::path_to_utf8(it.path().filename()));
-      std::filesystem::create_directories(up, fec);
-      if (ExtractAll(it.path(), up)) {
-        std::ofstream(stamp) << want;
-        REXLOG_INFO("[wwe2k15][dlc] title update unpacked into {}", up);
-      } else {
-        REXLOG_ERROR("[wwe2k15][dlc] title update could not be unpacked");
-        ++failed;
-      }
+      if (!UnpackTitleUpdatePackage(it.path())) ++failed;
       continue;
     }
     if (type != rex::system::XContentType::kMarketplaceContent) {

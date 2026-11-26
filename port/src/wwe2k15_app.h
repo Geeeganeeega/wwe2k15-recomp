@@ -53,7 +53,7 @@
 // Android (phone) pieces, from the user's WWE 2K17 Android port and Jarrod's WWE 2K14 port (BSD 3-Clause). Each of
 // these headers defines cvars, so they are included here only (wwe2k15_app.h is included by main.cpp alone).
 #include <rex/system/gpu_plugin.h>
-#include "android_touch.h"          // the touch controls' virtual pad (TouchOverlay.java)
+#include "touch_pad.h"              // the touch controls' virtual gamepad (TouchControls.java)
 #include "android_driver.h"         // custom Vulkan driver (Turnip) chosen in the launcher
 #include "android_gpu_profile.h"    // GPU settings for phone GPUs
 #include "android_perf.h"           // big cores, frame limit
@@ -261,6 +261,9 @@ class Wwe2k15App : public rex::ReXApp {
 
   void OnConfigurePaths(rex::PathConfig& paths) override {
     const auto exe_dir = AppFolder();
+#if defined(__ANDROID__)
+    wwe2k15::dlc::UnpackTitleUpdate();  // the imported Title Update 4 package -> update_data_root (default.xexp)
+#endif
     FixCvarPath(paths.game_data_root, "game_data_root");
     FixCvarPath(paths.user_data_root, "user_data_root");
     FixCvarPath(paths.update_data_root, "update_data_root");
