@@ -47,9 +47,26 @@
 #include "settings_menu.h"
 #include "quit_game.h"
 #include "quit_entry.h"
+#include "platform_time.h"
+
+#if defined(__ANDROID__)
+// Android (phone) pieces, from the user's WWE 2K17 Android port and Jarrod's WWE 2K14 port (BSD 3-Clause). Each of
+// these headers defines cvars, so they are included here only (wwe2k15_app.h is included by main.cpp alone).
+#include <rex/system/gpu_plugin.h>
+#include "android_touch.h"          // the touch controls' virtual pad (TouchOverlay.java)
+#include "android_driver.h"         // custom Vulkan driver (Turnip) chosen in the launcher
+#include "android_gpu_profile.h"    // GPU settings for phone GPUs
+#include "android_perf.h"           // big cores, frame limit
+#include "android_frame.h"          // per-frame pacing / performance hint, FPS overlay counter
+#include "crash_trace.h"            // where a native crash happened
+#include "dlc_install.h"            // DLC / title update packages imported in the launcher
+#include "missing_function_scan.h"  // pointers into code that codegen did not recompile
+#endif
 REXCVAR_DECLARE(bool, wwe2k15_show_fps);
 REXCVAR_DECLARE(bool, wwe2k15_mods);
-void InstallWwe2k15CrashReporter();
+#if defined(_WIN32)
+void InstallWwe2k15CrashReporter();  // crash_report.cpp (Windows only)
+#endif
 void Wwe2k15KbdInit(rex::ui::Window* window);  // text_entry_kbd.cpp: keyboard typing in letter grids
 extern std::atomic<uint32_t> g_wwe2k15_fps_x10;
 extern std::atomic<uint32_t> g_wwe2k15_worst_frame_us;
@@ -98,6 +115,21 @@ class Wwe2k15App : public rex::ReXApp {
     if (config.gpu_plugin.empty()) {
       config.gpu_plugin = "xenos";
     }
+#if defined(__ANDROID__)
+    wwe2k15::perf::PlaceOnBigCores();
+    wwe2k15::perf::StartThreadPlacer();
+    wwe2k15::android_driver::Install();  // custom Vulkan driver (Turnip) when the launcher chose one
+    if (!config.graphics) {
+      config.graphics = rex::system::LoadGpuPlugin(config.gpu_plugin, "vulkan");
+      if (!config.graphics) {
+        REXLOG_WARN("[wwe2k15] GPU backend 'vulkan' unavailable in plugin '{}'; falling back to 'any'",
+                    config.gpu_plugin);
+        config.graphics = rex::system::LoadGpuPlugin(config.gpu_plugin, "any");
+      }
+    }
+    // After the plugin is loaded: the GPU settings are registered by the plugin's library.
+    wwe2k15::gpu_profile::Apply();
+#endif
 #if defined(SVR_NATIVE_RENDERER)
     // The Xenos plugin's "null" backend keeps the game's D3D command stream moving (fences,
     // interrupts, vblank) without drawing; the re:Blue hooks draw instead.
@@ -176,6 +208,18 @@ class Wwe2k15App : public rex::ReXApp {
   void OnWindowPixelSizeChanged(uint32_t, uint32_t) override { bd::gpu::Video::RequestResize(); }
 #endif
 
+#if defined(__ANDROID__)
+  // The game's code is loaded and its functions registered; its first thread has not started.
+  void OnPreLaunchModule() override {
+    // Logs every pointer in the game's data into code no function covers ("[wwe2k15][scan] ..."): each one ends the
+    // game with "Call to invalid or unregistered function" otherwise (see BUILD.md).
+    wwe2k15::ScanForUnregisteredFunctionPointers(runtime(), PPCImageConfig, 5000);
+    wwe2k15::dlc::Sync(user_data_root());
+    wwe2k15::dlc::MountCache(user_data_root());
+    wwe2k15::dlc::ApplyTitleUpdateVersion();
+  }
+#endif
+
   // Folder cvars (--user_data_root=..., from the launcher or the toml) reach the SDK as UTF-8 text, but the SDK turns
   // them into std::filesystem::path through the ANSI code page, so a user name like "Hernan" with an acute a became
   // "Hern" + A-tilde + inverted-exclamation + "n" (a folder that does not exist and cannot be created: no cache, no DLC install, no saves; issue #40).
@@ -203,8 +247,20 @@ class Wwe2k15App : public rex::ReXApp {
     REXLOG_INFO("{}: path rebuilt from its UTF-8 text ({})", cvar_name, p.u8string());
   }
 
+  // The folder for the port's own files (mods, cache, game_update). The PC port keeps them beside the exe. On Android
+  // the "exe" is the system's app_process, so it is the app's files folder instead, which the SDK's SDL_main makes the
+  // working folder (GameActivity passes it in WWE2K14_FILES_DIR).
+  static std::filesystem::path AppFolder() {
+#if defined(__ANDROID__)
+    std::error_code ec;
+    auto dir = std::filesystem::current_path(ec);
+    if (!ec && !dir.empty()) return dir;
+#endif
+    return rex::filesystem::GetExecutableFolder();
+  }
+
   void OnConfigurePaths(rex::PathConfig& paths) override {
-    const auto exe_dir = rex::filesystem::GetExecutableFolder();
+    const auto exe_dir = AppFolder();
     FixCvarPath(paths.game_data_root, "game_data_root");
     FixCvarPath(paths.user_data_root, "user_data_root");
     FixCvarPath(paths.update_data_root, "update_data_root");
@@ -226,6 +282,7 @@ class Wwe2k15App : public rex::ReXApp {
           {},
           {},
       };
+#if defined(_WIN32)
       if (const wchar_t* user_profile = _wgetenv(L"USERPROFILE")) {
         candidates[5] = std::filesystem::path(user_profile) / "Desktop" / "WWE2K15";
         candidates[6] = std::filesystem::path(user_profile) / "Documents" / "WWE2K15";
@@ -233,6 +290,7 @@ class Wwe2k15App : public rex::ReXApp {
       if (const wchar_t* local_app_data = _wgetenv(L"LOCALAPPDATA")) {
         candidates[7] = std::filesystem::path(local_app_data) / "WWE2K15" / "game";
       }
+#endif
 
       for (const auto& candidate : candidates) {
         std::error_code ec;
@@ -267,24 +325,40 @@ class Wwe2k15App : public rex::ReXApp {
       }
     } else if (!IsDiscImage(paths.game_data_root)) {
       std::error_code ec;
-      if (!std::filesystem::is_regular_file(paths.game_data_root / "default.xexp", ec)) {
+      if (!std::filesystem::is_regular_file(paths.game_data_root / "default.xexp", ec) &&
+          !std::filesystem::is_regular_file(TitleUpdateDir(paths) / "default.xexp", ec)) {
         REXLOG_ERROR("{} has no default.xexp: this build needs WWE 2K15 Title Update 4 beside default.xex.",
                      paths.game_data_root.string());
       }
     }
 
     if (paths.user_data_root.empty()) {
+#if defined(_WIN32)
       if (const wchar_t* local_app_data = _wgetenv(L"LOCALAPPDATA")) {
         paths.user_data_root = std::filesystem::path(local_app_data) / "WWE2K15";
       } else {
         paths.user_data_root = exe_dir / "user_data";
       }
+#else
+      paths.user_data_root = exe_dir / "user_data";
+#endif
     }
     user_data_root_ = paths.user_data_root;
     game_data_root_ = paths.game_data_root;
     // Title update and DLC: beside default.xex in a game folder; a disc image cannot hold them,
     // so they go in game_update\ beside the executable (the launcher installs them there).
     extras_root_ = IsDiscImage(game_data_root_) ? exe_dir / "game_update" : game_data_root_;
+    // A title update imported in the launcher (Android) is unpacked into its own folder (update_data_root): when it
+    // holds default.xexp, that is where the title update comes from.
+    {
+      std::error_code ec;
+      const auto tu = TitleUpdateDir(paths);
+      if (!tu.empty() && std::filesystem::is_regular_file(tu / "default.xexp", ec) &&
+          !std::filesystem::is_regular_file(extras_root_ / "default.xexp", ec)) {
+        extras_root_ = tu;
+        REXLOG_INFO("Title update from {}", extras_root_.string());
+      }
+    }
     if (IsDiscImage(game_data_root_)) {
       std::error_code ec;
       if (!std::filesystem::is_regular_file(extras_root_ / "default.xexp", ec)) {
@@ -298,7 +372,12 @@ class Wwe2k15App : public rex::ReXApp {
   // over the disc (as the mods folder is) before the executable loads, so the loader finds
   // game:\default.xexp there and applies the title update.
   void OnLoadXexImage(std::string& xex_image) override {
-    if (!IsDiscImage(game_data_root_)) return;
+    std::error_code xec;
+    const bool overlay_tu = IsDiscImage(game_data_root_) ||
+                            (extras_root_ != game_data_root_ &&
+                             !std::filesystem::is_regular_file(game_data_root_ / "default.xexp", xec) &&
+                             std::filesystem::is_regular_file(extras_root_ / "default.xexp", xec));
+    if (!overlay_tu) return;
     // Overlays are searched in registration order: mods go first so they win over game_update.
     MountMods();
     auto* fs = REX_KERNEL_FS();
@@ -314,7 +393,11 @@ class Wwe2k15App : public rex::ReXApp {
   // The title reads and writes its Xbox HDD cache (for example EditEx.cac).
   // ReXGlue does not mount cache: by default, so give it a writable local folder.
   void OnPostSetup() override {
+#if defined(_WIN32)
     InstallWwe2k15CrashReporter();
+#elif defined(__ANDROID__)
+    wwe2k15::crash_trace::Install();  // after the SDK's own fault handler: ours goes in front of it
+#endif
     Wwe2k15KbdInit(window());  // physical keyboard in the game's letter grids
     // The game gets no input while the settings menu is open (SDK rule kept: not while an overlay has the mouse).
     if (runtime() && runtime()->input_system()) {
@@ -323,6 +406,12 @@ class Wwe2k15App : public rex::ReXApp {
         return !imgui_drawer() || !imgui_drawer()->GetIO().WantCaptureMouse;
       });
     }
+#if defined(__ANDROID__)
+    // Android: the launcher's imported title update is mounted as update:\ by the SDK (update_data_root), DLC is
+    // installed and cache:\ mounted by dlc_install.h (OnPreLaunchModule). Only mods are left.
+    MountMods();
+    return;
+#endif
     MountTitleUpdate();
     MountMods();
     InstallDlcPackages();
@@ -410,7 +499,7 @@ class Wwe2k15App : public rex::ReXApp {
   // game folder itself is never modified. Disabled with --wwe2k15_mods=false.
   void MountMods() {
     if (!REXCVAR_GET(wwe2k15_mods) || mods_mounted_) return;
-    const auto mods = rex::filesystem::GetExecutableFolder() / "mods";
+    const auto mods = AppFolder() / "mods";
     std::error_code ec;
     size_t files = 0;
     for (const auto& e : std::filesystem::recursive_directory_iterator(mods, ec))
@@ -463,6 +552,11 @@ class Wwe2k15App : public rex::ReXApp {
     }
   }
 
+  // The title update folder the launcher unpacked (--update_data_root), or empty.
+  static std::filesystem::path TitleUpdateDir(const rex::PathConfig& paths) {
+    return paths.update_data_root;
+  }
+
   static bool IsDiscImage(const std::filesystem::path& p) {
     std::error_code ec;
     std::string ext = p.extension().string();
@@ -489,7 +583,7 @@ class Wwe2k15App : public rex::ReXApp {
       return;
     }
     if (!imgui_drawer()) return;
-    settings_menu_ = std::make_unique<wwe2k15_menu::Dialog>(imgui_drawer(), rex::filesystem::GetExecutableFolder() / "wwe2k15.toml", [this] {
+    settings_menu_ = std::make_unique<wwe2k15_menu::Dialog>(imgui_drawer(), AppFolder() / "wwe2k15.toml", [this] {
       // Called from inside the dialog's own draw: close it once the frame is done.
       app_context().CallInUIThreadDeferred([this] {
         if (settings_menu_) {

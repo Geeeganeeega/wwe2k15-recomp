@@ -19,11 +19,15 @@
 #include <windows.h>
 #endif
 
+#if defined(_WIN32)
 #include <intrin.h>
+#endif
+#include "platform_time.h"
 
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <thread>
 #include <string>
 
 #include <fmt/format.h>
@@ -64,7 +68,7 @@ void SleepSlice(WaitState& s) {
       return;
     }
   }
-  SwitchToThread();
+  std::this_thread::yield();
 #endif
 }
 
@@ -77,12 +81,7 @@ std::atomic<uint64_t> g_wwe2k15_gpu_wait_us{0};
 namespace {
 thread_local bool t_in_wait = false;
 thread_local uint64_t t_wait_begin = 0;
-uint64_t QpcUs() {
-  LARGE_INTEGER f, c;
-  QueryPerformanceFrequency(&f);
-  QueryPerformanceCounter(&c);
-  return static_cast<uint64_t>(c.QuadPart * 1000000.0 / f.QuadPart);
-}
+uint64_t QpcUs() { return wwe2k15::NowUs(); }
 }  // namespace
 
 extern "C" REX_FUNC(sub_82BAC6B0) {
@@ -117,6 +116,19 @@ extern "C" REX_FUNC(sub_82BAC6B0) {
     SleepSlice(s);
   } else {
     _mm_pause();
+  }
+#else
+  // Android: the same spin-then-sleep shape with steady_clock and nanosleep.
+  WaitState& s = state;
+  const uint64_t now = wwe2k15::NowUs();
+  if (double(now - s.last_call) > kNewWaitGapUs) {
+    s.wait_start = now;  // a new wait began; the previous one ended
+  }
+  s.last_call = now;
+  if (double(now - s.wait_start) > kSpinUs) {
+    wwe2k15::SleepSliceUs(static_cast<uint32_t>(kSleepUs));
+  } else {
+    wwe2k15::CpuRelax();
   }
 #endif
 }
@@ -153,9 +165,9 @@ std::atomic<bool> g_render_parked{false};
 std::atomic<uint32_t> g_helper_calls{0}, g_helper_timeouts{0}, g_park_timeouts{0};
 thread_local int t_wait_depth = 0;
 
-uint32_t ThisThread() { return static_cast<uint32_t>(GetCurrentThreadId()); }
+uint32_t ThisThread() { return wwe2k15::ThisThreadId(); }
 bool IsRenderThread() { return g_render_thread.load(std::memory_order_relaxed) == ThisThread(); }
-uint64_t NowMs() { return GetTickCount64(); }
+uint64_t NowMs() { return wwe2k15::NowMs(); }
 
 // Render thread at a packet boundary: let any running helper finish before going on.
 // Leaving: drop the parked flag, then look at the helpers again (both sides use sequentially
@@ -172,7 +184,7 @@ void RenderUnparkAfterHelpers() {
         g_render_parked.store(false);
         return;
       }
-      SwitchToThread();
+      std::this_thread::yield();
     }
     g_render_parked.store(false);
     if (!g_helpers_running.load())
@@ -214,7 +226,7 @@ void Wwe2k15RingLockOnPresent() {
   const uint64_t start = NowMs();
   while (g_helpers_waiting.load(std::memory_order_acquire) &&
          !g_helpers_running.load(std::memory_order_acquire) && NowMs() - start < 5)
-    SwitchToThread();
+    std::this_thread::yield();
   RenderUnparkAfterHelpers();
 }
 
@@ -238,7 +250,7 @@ extern "C" REX_FUNC(sub_82BA8358) {
         ok = false;
         break;
       }
-      SwitchToThread();
+      std::this_thread::yield();
       g_helpers_running.fetch_add(1);
     }
     g_helpers_waiting.fetch_sub(1);

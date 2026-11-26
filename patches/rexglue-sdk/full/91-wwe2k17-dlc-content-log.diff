@@ -1,0 +1,57 @@
+# wwe2k17: the root name ('dlc0') of an async XamContentCreate pointed into guest memory the game had already reused, so DLC mounted under garbage names; copy it. Also logs content calls and falls back to the running title id.
+--- a/src/kernel/xam/xam_content.cpp	2026-11-05 07:31:31.063266292 +0000
++++ b/src/kernel/xam/xam_content.cpp	2026-11-05 08:44:20.053746824 +0000
+@@ -107,7 +107,8 @@
+     // TODO(gibbed): disc drive content
+   }
+ 
+-  REXKRNL_DEBUG("XamContentCreateEnumerator: added {} items to enumerator", e->item_count());
++  REXKRNL_WARN("[wwe2k17][content] XamContentCreateEnumerator type={:#x} flags={:#x} -> {} items",
++               uint32_t(content_type), content_flags, e->item_count());
+ 
+   *handle_out = e->handle();
+   return X_ERROR_SUCCESS;
+@@ -141,10 +142,21 @@
+     *disposition_ptr = 0;
+   }
+ 
+-  auto run = [content_manager, xuid, root_name = root_name.value(), flags, content_data,
+-              disposition_ptr,
++  auto run = [content_manager, xuid, root_name = std::string(root_name.value()), flags,
++              content_data_in = content_data, disposition_ptr,
+               license_mask_ptr](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
+     X_RESULT result = X_ERROR_INVALID_PARAMETER;
++    XCONTENT_AGGREGATE_DATA content_data = content_data_in;
++    // wwe2k17: a DLC listed with another title id than the running game (or one never installed under the
++    // exact name) is looked up under the running game's id before it is given up on.
++    if (content_data.content_type == XContentType::kMarketplaceContent &&
++        !content_manager->ContentExists(xuid, content_data)) {
++      auto fixed = content_data;
++      fixed.title_id = REX_KERNEL_STATE()->title_id();
++      if (content_manager->ContentExists(xuid, fixed)) {
++        content_data = fixed;
++      }
++    }
+     kDispositionState disposition = kDispositionState::Unknown;
+     switch (flags & 0xF) {
+       case 1:  // CREATE_NEW
+@@ -224,6 +236,10 @@
+       *disposition_ptr = static_cast<uint32_t>(disposition);
+     }
+ 
++    REXKRNL_WARN("[wwe2k17][content] XamContentCreate root='{}' type={:#x} file='{}' title={:08X} flags={:#x} "
++                 "disposition={} -> {:#x}",
++                 root_name, uint32_t(XContentType(content_data.content_type)), content_data.file_name(),
++                 uint32_t(content_data.title_id), flags, uint32_t(disposition), uint32_t(result));
+     extended_error = X_HRESULT_FROM_WIN32(result);
+     length = static_cast<uint32_t>(disposition);
+     return result;
+@@ -281,6 +297,8 @@
+ u32 XamContentClose_entry(mapped_string root_name, mapped_void overlapped_ptr) {
+   // Closes a previously opened root from XamContentCreate*.
+   auto result = REX_KERNEL_STATE()->content_manager()->CloseContent(root_name.value());
++  REXKRNL_WARN("[wwe2k17][content] XamContentClose root='{}' -> {:#x}", root_name.value(),
++               uint32_t(result));
+ 
+   if (overlapped_ptr) {
+     REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);

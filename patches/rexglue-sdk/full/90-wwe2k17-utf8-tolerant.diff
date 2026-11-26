@@ -1,0 +1,94 @@
+# wwe2k17: invalid UTF-8 / UTF-16 in a game's names no longer throws (it ended the game when DLC was on)
+--- a/src/core/utf8.cpp	2026-11-05 00:00:00.000000000 +0000
++++ b/src/core/utf8.cpp	2026-11-05 00:00:01.000000000 +0000
+@@ -12,6 +12,7 @@
+ #include <algorithm>
+ #include <cstdint>
+ #include <locale>
++#include <iterator>
+ #include <numeric>
+ #include <tuple>
+ 
+@@ -27,12 +28,40 @@
+ 
+ namespace rex::string {
+ 
++// wwe2k17: a name from the game (a DLC root name, a package name) with bytes that are not valid UTF-8 made the
++// conversions below throw, which ended the game ("Dispatch thread: deferred completion threw 'Invalid UTF-8'").
++// Invalid bytes are replaced with U+FFFD instead.
++static std::string sanitize_utf8(const std::string_view view) {
++  std::string clean;
++  clean.reserve(view.size());
++  utfcpp::replace_invalid(view.begin(), view.end(), std::back_inserter(clean));
++  return clean;
++}
++
+ std::string to_utf8(const std::u16string_view source) {
+-  return utfcpp::utf16to8(source);
++  try {
++    return utfcpp::utf16to8(source);
++  } catch (const std::exception&) {
++    std::u16string clean;
++    clean.reserve(source.size());
++    for (size_t i = 0; i < source.size(); ++i) {
++      const char16_t c = source[i];
++      if (c >= 0xD800 && c <= 0xDBFF && i + 1 < source.size() && source[i + 1] >= 0xDC00 && source[i + 1] <= 0xDFFF) {
++        clean.push_back(c);
++        clean.push_back(source[++i]);
++      } else if (c >= 0xD800 && c <= 0xDFFF) {
++        clean.push_back(0xFFFD);
++      } else {
++        clean.push_back(c);
++      }
++    }
++    return utfcpp::utf16to8(clean);
++  }
+ }
+ 
+ std::u16string to_utf16(const std::string_view source) {
+-  return utfcpp::utf8to16(source);
++  if (utfcpp::is_valid(source.begin(), source.end())) return utfcpp::utf8to16(source);
++  return utfcpp::utf8to16(sanitize_utf8(source));
+ }
+ 
+ std::string to_string(char32_t c) {
+@@ -67,11 +96,15 @@
+   return size_t(std::distance(begin.base(), end.base()));
+ }
+ 
+-size_t utf8_count(const std::string_view view) {
++size_t utf8_count(const std::string_view view0) {
++  const std::string clean = utfcpp::is_valid(view0.begin(), view0.end()) ? std::string() : sanitize_utf8(view0);
++  const std::string_view view = clean.empty() ? view0 : std::string_view(clean);
+   return size_t(utfcpp::distance(view.cbegin(), view.cend()));
+ }
+ 
+-std::string utf8_lower_ascii(const std::string_view view) {
++std::string utf8_lower_ascii(const std::string_view view0) {
++  const std::string clean = utfcpp::is_valid(view0.begin(), view0.end()) ? std::string() : sanitize_utf8(view0);
++  const std::string_view view = clean.empty() ? view0 : std::string_view(clean);
+   auto [begin, end] = make_citer(view);
+   std::string result;
+   for (auto it = begin; it != end; ++it) {
+@@ -80,7 +113,9 @@
+   return result;
+ }
+ 
+-std::string utf8_upper_ascii(const std::string_view view) {
++std::string utf8_upper_ascii(const std::string_view view0) {
++  const std::string clean = utfcpp::is_valid(view0.begin(), view0.end()) ? std::string() : sanitize_utf8(view0);
++  const std::string_view view = clean.empty() ? view0 : std::string_view(clean);
+   auto [begin, end] = make_citer(view);
+   std::string result;
+   for (auto it = begin; it != end; ++it) {
+@@ -90,7 +125,9 @@
+ }
+ 
+ template <bool LOWER>
+-inline size_t hash_fnv1a(const std::string_view view) {
++inline size_t hash_fnv1a(const std::string_view view0) {
++  const std::string clean = utfcpp::is_valid(view0.begin(), view0.end()) ? std::string() : sanitize_utf8(view0);
++  const std::string_view view = clean.empty() ? view0 : std::string_view(clean);
+   const size_t offset_basis = 0xCBF29CE484222325ull;
+   const size_t prime = 0x00000100000001B3ull;
+   auto work = [&prime](size_t hash, uint8_t byte_of_data) {

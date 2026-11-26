@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Builds the `rexglue` command-line tool (the recompiler) for THIS machine - a Linux PC, or Termux's Ubuntu (proot) on
+# the phone - from the same SDK the Android APK is built with: upstream ReXGlue at the commit in tools/android/env.sh
+# plus every patch in patches/rexglue-sdk/full/. Codegen output must come from this exact SDK: the WWE 2K14 patches
+# change what codegen writes (memory fences for ARM, for example), and the APK's runtime expects that.
+#   tools/codegen/build_rexglue.sh        -> out/host/sdk-build/.../rexglue
+# Needs: git, cmake, ninja, clang (or gcc 13+), python3.   apt install git cmake ninja-build clang python3
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SDK_COMMIT="$(sed -n 's/^SDK_COMMIT="\(.*\)"/\1/p' "$ROOT/tools/android/env.sh")"
+WORK="${WORK:-$ROOT/out/host}"
+SRC="$WORK/rexglue-sdk-src"
+BUILD="$WORK/sdk-build"
+JOBS="${JOBS:-$(nproc)}"
+
+mkdir -p "$WORK"
+[ -d "$SRC/.git" ] || git clone https://github.com/rexglue/rexglue-sdk "$SRC"
+git -C "$SRC" reset -q --hard
+git -C "$SRC" clean -qfdx
+git -C "$SRC" checkout -q "$SDK_COMMIT"
+for p in "$ROOT"/patches/rexglue-sdk/full/*.diff; do
+  git -C "$SRC" apply --whitespace=nowarn "$p" || { echo "patch failed: $p" >&2; exit 1; }
+done
+echo "applied $(ls "$ROOT"/patches/rexglue-sdk/full/*.diff | wc -l) patches on $SDK_COMMIT"
+git -C "$SRC" submodule update --init --recursive --depth 1
+
+cmake -S "$SRC" -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DREXGLUE_ENABLE_TRACY=OFF -DREXGLUE_ENABLE_FIDELITYFX=OFF -DREXGLUE_BUILD_TESTS=OFF
+cmake --build "$BUILD" --target rexglue -j "$JOBS"
+TOOL="$(find "$BUILD" -type f -name rexglue -perm -u+x | head -1)"
+[ -n "$TOOL" ] || { echo "rexglue was not built" >&2; exit 1; }
+echo "built: $TOOL"

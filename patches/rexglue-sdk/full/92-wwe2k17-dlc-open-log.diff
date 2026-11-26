@@ -1,0 +1,16 @@
+# wwe2k17: log every DLC file the game opens
+--- a/src/kernel/xboxkrnl/xboxkrnl_io.cpp
++++ b/src/kernel/xboxkrnl/xboxkrnl_io.cpp
+@@ -172,6 +172,12 @@
+     REXKRNL_IMPORT_FAIL("NtCreateFile", "path='{}' -> {:#x}", target_path, result);
+   } else {
+     REXKRNL_IMPORT_RESULT("NtCreateFile", "{:#x} handle={:#x}", result, handle);
++    // wwe2k17: log the DLC / update files the game really opens (which character packs it reads).
++    if (target_path.size() > 3 && (target_path[0] == 'd' || target_path[0] == 'D') &&
++        (target_path[1] == 'l' || target_path[1] == 'L') &&
++        (target_path[2] == 'c' || target_path[2] == 'C')) {
++      REXKRNL_WARN("[wwe2k17][open] {}", target_path);
++    }
+   }
+   return result;
+ }

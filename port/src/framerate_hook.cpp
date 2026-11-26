@@ -18,6 +18,7 @@
 #endif
 
 #include <rex/cvar.h>
+#include "platform_time.h"
 #include <rex/logging/macros.h>
 
 REXCVAR_DEFINE_BOOL(wwe2k15_show_fps, false, "WWE2K15", "Show an FPS counter in the game");
@@ -79,12 +80,7 @@ std::atomic<uint64_t> g_scene_start_us{0};
 std::atomic<bool> g_auto_off{false};  // a PC that cannot hold 60 in scenes: they stay at the game's 30
 PPCContext g_drop_ctx;                 // registers at the last "drop to 30" call (to run it later)
 uint8_t* g_drop_base = nullptr;
-uint64_t NowUsEarly() {
-  LARGE_INTEGER f, c;
-  QueryPerformanceFrequency(&f);
-  QueryPerformanceCounter(&c);
-  return static_cast<uint64_t>(c.QuadPart * 1000000.0 / f.QuadPart);
-}
+uint64_t NowUsEarly() { return wwe2k15::NowUs(); }
 }  // namespace
 
 // True while an entrance/victory scene that the game wants at 30 runs at 60 instead.
@@ -115,12 +111,7 @@ extern "C" REX_FUNC(sub_82AB1708) {
 // frames, mean/max time between presents, share of it spent waiting for the GPU ring, and
 // the fps the title's timing struct asks for.
 namespace {
-uint64_t NowUs() {
-  LARGE_INTEGER f, c;
-  QueryPerformanceFrequency(&f);
-  QueryPerformanceCounter(&c);
-  return static_cast<uint64_t>(c.QuadPart * 1000000.0 / f.QuadPart);
-}
+uint64_t NowUs() { return wwe2k15::NowUs(); }
 // Called once per present. While a scene runs at 60 instead of the game's 30, if the average frame time stays
 // above 26 ms for two windows of 90 frames the PC cannot hold it (the game's logic follows the frame rate, so
 // the scene would play in slow motion): run the game's own "drop to 30" now and keep it for the session.
@@ -162,6 +153,9 @@ struct Counter {
 // overrides D3DDevice_Swap itself) from the renderer's per-frame tick (Wwe12DisplayOnFrame). `base`
 // is null there: the title fps read from guest memory is then left out of the log line.
 void Wwe2k15RingLockOnPresent();  // render_wait_hook.cpp (issue #33)
+#if defined(__ANDROID__)
+void Wwe2k15AndroidOnPresent();  // android_frame.h: frame pacing, performance hint (phone only)
+#endif
 
 void Wwe2k15OnGuestPresent(uint8_t* base) {
   Wwe2k15RingLockOnPresent();
@@ -201,6 +195,9 @@ void Wwe2k15OnGuestPresent(uint8_t* base) {
       p.wait_at_start = g_wwe2k15_gpu_wait_us.load();
     }
   }
+#if defined(__ANDROID__)
+  Wwe2k15AndroidOnPresent();
+#endif
 }
 
 #if !defined(SVR_NATIVE_RENDERER)

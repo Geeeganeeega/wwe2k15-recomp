@@ -1,0 +1,209 @@
+name: Android build
+
+# Builds the recompiled WWE 2K15 for Android (arm64) and publishes the APK as the "dev-latest" pre-release of this
+# repository. Started by hand: Actions tab -> "Android build" -> Run workflow (or: gh workflow run android.yml).
+#
+# Two jobs:
+#   sdk   builds the ReXGlue SDK (upstream + an earlier port's patches) for Android. Slow; cached by the content of
+#         the patches and the build script, so it only runs again when those change.
+#   game  compiles the generated code (the 'generated' branch: `rexglue codegen` output for WWE 2K15 + Title Update 4,
+#         made on the phone or a PC from your own game files), packages and signs the APK. The game's own files are
+#         never needed here. Layout from the user's WWE 2K15 Android port.
+on:
+  workflow_dispatch:
+
+# bash with pipefail: "script | tee log" must fail when the script fails (the default shell lets that pass).
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: android-build
+  cancel-in-progress: false
+
+env:
+  ANDROID_HOME: ${{ github.workspace }}/../android-sdk
+  CCACHE: "1"
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 3G
+  CCACHE_COMPILERCHECK: "string:ndk-29.0.14206865"
+  CCACHE_SLOPPINESS: pch_defines,time_macros,include_file_mtime,include_file_ctime
+  CCACHE_BASEDIR: ${{ github.workspace }}
+
+jobs:
+  sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache key for the SDK build
+        id: key
+        run: echo "sdk=sdk-install-${{ hashFiles('patches/rexglue-sdk/full/*.diff', 'tools/android/build_sdk.sh', 'tools/android/env.sh') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the SDK build
+        id: sdk-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: out/android/sdk-install
+          key: ${{ steps.key.outputs.sdk }}
+
+      - name: Free disk space
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/local/lib/android/sdk/ndk
+          df -h /
+
+      - name: Install tools
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ccache ninja-build zip unzip
+          SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
+          mkdir -p "$ANDROID_HOME"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses > /dev/null || true
+          for try in 1 2 3; do
+            "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "ndk;29.0.14206865" && break
+            echo "sdkmanager failed (try $try), retrying"; sleep 10
+          done
+          [ -f "$ANDROID_HOME/ndk/29.0.14206865/build/cmake/android.toolchain.cmake" ]
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          cmake --version
+
+      - name: Restore ccache
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ccache-sdk-${{ github.run_id }}
+          restore-keys: ccache-sdk-
+
+      - name: Build the SDK
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 330
+        run: |
+          mkdir -p out/android
+          tools/android/build_sdk.sh 2>&1 | tee out/android/sdk-build.log
+
+      - name: Save ccache
+        if: always() && steps.sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ccache-sdk-${{ github.run_id }}
+
+      - name: Save the SDK build
+        if: success() && steps.sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: out/android/sdk-install
+          key: ${{ steps.key.outputs.sdk }}
+
+      - name: Keep the log
+        if: always()
+        continue-on-error: true  # a full artifact quota must not fail the SDK job
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-build-log
+          path: out/android/sdk-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  game:
+    needs: sdk
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: The generated code (made by `rexglue codegen`, kept on its own branch)
+        uses: actions/checkout@v4
+        with:
+          ref: generated
+          path: port/generated/default
+
+      - name: Cache key for the SDK build
+        id: key
+        run: echo "sdk=sdk-install-${{ hashFiles('patches/rexglue-sdk/full/*.diff', 'tools/android/build_sdk.sh', 'tools/android/env.sh') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Get the SDK build
+        uses: actions/cache/restore@v4
+        with:
+          path: out/android/sdk-install
+          key: ${{ steps.key.outputs.sdk }}
+          fail-on-cache-miss: true
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/local/lib/android/sdk/ndk
+          df -h /
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ccache ninja-build zip unzip
+          SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
+          mkdir -p "$ANDROID_HOME"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses > /dev/null || true
+          for try in 1 2 3; do
+            "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "ndk;29.0.14206865" "build-tools;36.0.0" "platforms;android-36" && break
+            echo "sdkmanager failed (try $try), retrying"; sleep 10
+          done
+          [ -f "$ANDROID_HOME/platforms/android-36/android.jar" ] && [ -x "$ANDROID_HOME/build-tools/36.0.0/aapt2" ]
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          cmake --version
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ccache-game-${{ github.run_id }}
+          restore-keys: ccache-game-
+
+      - name: libadrenotools (loads custom Vulkan drivers)
+        run: git clone --recursive --depth 1 https://github.com/bylaws/libadrenotools port/thirdparty/libadrenotools
+
+      - name: Compile the game library
+        timeout-minutes: 330
+        run: |
+          mkdir -p out/android
+          tools/android/build_game.sh 2>&1 | tee out/android/game-build.log
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ccache-game-${{ github.run_id }}
+
+      - name: Package and sign the APK
+        run: |
+          BASE_VERSION="$(tr -d '[:space:]' < android/VERSION)"
+          export VERSION_NAME="${BASE_VERSION}-${{ github.run_number }}"
+          export VERSION_CODE="${{ github.run_number }}"
+          tools/android/build_apk.sh 2>&1 | tee out/android/apk-build.log
+
+      - name: Keep the logs
+        if: always()
+        continue-on-error: true  # the artifact storage quota can be full; that must not block publishing the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-build-logs
+          path: out/android/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Publish the APK (pre-release "dev-latest" / "dev-latest-original")
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=dev-latest
+          TITLE="WWE 2K15 Android dev build ${{ github.run_number }}"
+          NOTE="Test build ${{ github.run_number }} of commit ${GITHUB_SHA::7}. Needs WWE 2K15 with Title Update 4 (default.xexp). Install over the previous one; the signing key is the same."
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" out/android/apk/wwe2k15-android.apk \
+            --prerelease --target "$GITHUB_SHA" --title "$TITLE" --notes "$NOTE"

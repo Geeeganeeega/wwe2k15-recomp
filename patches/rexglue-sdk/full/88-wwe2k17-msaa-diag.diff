@@ -1,0 +1,37 @@
+# wwe2k17: MSAA draws with no effect no longer keep the frame off the truth path
+--- a/src/graphics/vulkan/native/native_truth.cpp	2026-11-04 13:04:00.260801460 +0000
++++ b/src/graphics/vulkan/native/native_truth.cpp	2026-11-04 13:44:03.812546914 +0000
+@@ -15,6 +15,8 @@
+  * polygon offset, a surface reading tiles another surface wrote since keeps its own old pixels there.
+  */
+ 
++#include <set>
++#include <array>
+ #include <rex/graphics/vulkan/native/native_renderer.h>
+ 
+ #include <algorithm>
+@@ -808,7 +810,23 @@
+ uint32_t NativeRenderer::TruthReason(const Draw& draw, bool check_shader) const {
+   if (draw.memexport) return kTruthMemexport;
+   if (!draw.raster.supported && !draw.raster.expanded) return kTruthPrimitive;
+-  if (((draw.surface_info >> 16) & 3) && !draw.fast_clear) return kTruthMsaa;
++  if (((draw.surface_info >> 16) & 3) && !draw.fast_clear) {
++    // wwe2k17: a draw into an MSAA surface that writes no colour and neither tests, writes nor stencils depth changes
++    // nothing in any target (WWE 2K17 issues a one-point, no-pixel-shader draw into a 4x surface every frame): it must
++    // not keep the whole frame off the truth path.
++    const bool effect = (draw.color_write_mask & 0xF) != 0 || draw.raster.depth_test || draw.raster.depth_write ||
++                        draw.raster.stencil;
++    if (effect || draw.occlusion_query) {
++      static std::set<std::array<uint32_t, 3>> seen_msaa;
++      if (seen_msaa.size() < 40 && seen_msaa.insert({draw.surface_info, draw.color_info, draw.depth_info}).second) {
++        REXGPU_INFO("[native][msaa] draw refused: surface_info {:08X} (msaa {} pitch {}) color_info {:08X} depth_info {:08X} vertices {} write mask {:X} depth test {} write {} stencil {} occlusion {}",
++                    draw.surface_info, (draw.surface_info >> 16) & 3, draw.surface_info & 0x3FFF, draw.color_info,
++                    draw.depth_info, draw.vertex_count, draw.color_write_mask, draw.raster.depth_test,
++                    draw.raster.depth_write, draw.raster.stencil, draw.occlusion_query);
++      }
++      return kTruthMsaa;
++    }
++  }
+   if (draw.color_mask_all & ~uint32_t(0xF)) return kTruthOtherTargets;
+   const bool writes_color = (draw.color_write_mask & 0xF) != 0;
+   if (writes_color && !TruthClass(draw)) return kTruthColorFormat;

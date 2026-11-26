@@ -8,7 +8,15 @@ project(wwe2k15 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include(generated/rexglue.cmake)
+# WWE2K15_PREGENERATED=ON: the recompiled C++ in generated/default/ was made earlier (on the phone or a PC, by
+# `rexglue codegen`) and is simply compiled. The normal glue also re-runs codegen, which needs the game's
+# default.xex: the GitHub Actions machine that builds the Android APK never has it (tools/android/, BUILD_ANDROID.md).
+option(WWE2K15_PREGENERATED "Build from generated/default/ as it is (no codegen step)" OFF)
+if(WWE2K15_PREGENERATED)
+    include(cmake/rexglue_pregenerated.cmake)
+else()
+    include(generated/rexglue.cmake)
+endif()
 
 # SDL needs an explicit mapping for some DualSense HID revisions on Windows.
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/gamecontrollerdb.txt"
@@ -19,7 +27,6 @@ set(WWE2K15_SOURCES
     src/main.cpp
     src/render_wait_hook.cpp
     src/framerate_hook.cpp
-    src/crash_report.cpp
     src/text_hook.cpp
     src/text_entry_kbd.cpp
     src/crash_guards.cpp
@@ -31,6 +38,15 @@ set(WWE2K15_SOURCES
 )
 
 if(WIN32)
+    list(APPEND WWE2K15_SOURCES src/crash_report.cpp)  # Windows crash dialog and report (crash_trace.h on Android)
+endif()
+
+if(ANDROID)
+    # A shared library: SDL's Java activity (GameActivity.java) loads libmain.so and calls SDL_main (the SDK's
+    # windowed_app_main_sdl.cpp, added by rexglue_configure_target). Same arrangement as the WWE 2K14 / 2K17 ports.
+    add_library(wwe2k15 SHARED ${WWE2K15_SOURCES})
+    set_target_properties(wwe2k15 PROPERTIES OUTPUT_NAME main)
+elseif(WIN32)
     add_executable(wwe2k15 WIN32 ${WWE2K15_SOURCES})
 else()
     add_executable(wwe2k15 ${WWE2K15_SOURCES})
@@ -65,6 +81,34 @@ endif()
 
 rexglue_setup_target(wwe2k15 GPU_PLUGINS xenos)
 
+if(ANDROID)
+    target_link_libraries(wwe2k15 PRIVATE android log)
+    # Custom Vulkan drivers (src/android_driver.h): libadrenotools (BSD-2-Clause) is fetched into thirdparty/ by the
+    # build (git clone --recursive https://github.com/bylaws/libadrenotools port/thirdparty/libadrenotools); its hook
+    # libraries go into the APK.
+    set(WWE2K15_ADRENOTOOLS "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/libadrenotools")
+    if(NOT EXISTS "${WWE2K15_ADRENOTOOLS}/CMakeLists.txt")
+        message(FATAL_ERROR "thirdparty/libadrenotools is missing (git clone --recursive https://github.com/bylaws/libadrenotools port/thirdparty/libadrenotools)")
+    endif()
+    if(NOT CMAKE_ANDROID_ARCH_ABI)
+        set(CMAKE_ANDROID_ARCH_ABI ${ANDROID_ABI})
+    endif()
+    add_subdirectory("${WWE2K15_ADRENOTOOLS}" adrenotools EXCLUDE_FROM_ALL)
+    target_link_libraries(wwe2k15 PRIVATE adrenotools)
+    add_dependencies(wwe2k15 hook_impl main_hook)
+    # Report every error of a pass, not the first 20 (the build machine is remote: one run should show them all).
+    foreach(_wwe2k15_t wwe2k15 wwe2k15_recomp)
+        if(TARGET ${_wwe2k15_t})
+            target_compile_options(${_wwe2k15_t} PRIVATE -ferror-limit=0)
+        endif()
+    endforeach()
+    # The recompiled code is hundreds of big files: -O2 compiles noticeably faster than Release's -O3 for little speed
+    # difference on this kind of code (straight-line register arithmetic). Same as the WWE 2K17 port.
+    if(TARGET wwe2k15_recomp)
+        target_compile_options(wwe2k15_recomp PRIVATE -O2)
+    endif()
+endif()
+
 if(WWE2K15_NATIVE_RENDERER)
     # wwe2k15_recomp only exists once codegen has written generated/ (a fresh checkout's first
     # configure doesn't have it; the build runs codegen and CMake configures again).
@@ -96,7 +140,9 @@ if(WIN32)
     set_source_files_properties(res/wwe2k15.rc PROPERTIES
         OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/res/wwe2k15.ico)
 endif()
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
+if(NOT WWE2K15_PREGENERATED)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+endif()
 
 # Native Win32 launcher, styled after the project's WWE '12 launcher.
 if(WIN32)
@@ -131,7 +177,7 @@ endif()
 # the base game). TU4 moves this library by about +0x8000; WWE '12's D3D functions span about
 # -0x9600..+0x1B00 around its Swap, hence the default 0x82B9C000-0x82BB8000 (564 functions).
 option(WWE2K15_D3D_CENSUS "Instrument the initial WWE 2K15 D3D address window" OFF)
-if(WWE2K15_D3D_CENSUS)
+if(WWE2K15_D3D_CENSUS AND NOT WWE2K15_PREGENERATED)
     set(WWE2K15_D3D_CENSUS_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/wwe2k15_d3d_census.cpp")
     add_custom_command(
         OUTPUT "${WWE2K15_D3D_CENSUS_SOURCE}"
@@ -152,6 +198,7 @@ endif()
 # ReXGlue can emit a fatal stub for conditional branches whose destination is
 # present as a local label in the same generated function. Patch those specific
 # cases to a normal local goto after codegen and before compiling the sources.
+if(NOT WWE2K15_PREGENERATED)  # (pregenerated: tools/android/build_game.sh runs patch_codegen.py itself)
 add_custom_target(wwe2k15_patch_codegen
     COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_codegen.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -163,7 +210,9 @@ if(TARGET wwe2k15_recomp)
     add_dependencies(wwe2k15_recomp wwe2k15_patch_codegen)
 endif()
 add_dependencies(wwe2k15 wwe2k15_patch_codegen)
+endif()
 
+if(NOT ANDROID)
 # Keep runtime settings beside the executable, where ReXApp loads wwe2k15.toml.
 set_property(TARGET wwe2k15 APPEND PROPERTY LINK_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/wwe2k15_runtime.toml"
@@ -183,3 +232,4 @@ add_custom_command(TARGET wwe2k15 POST_BUILD
         "$<TARGET_FILE_DIR:wwe2k15>/Lancer WWE 2K15 - manette SDL.bat"
     VERBATIM
 )
+endif()  # NOT ANDROID

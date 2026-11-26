@@ -1,0 +1,28 @@
+--- a/src/ui/presenter.cpp
++++ b/src/ui/presenter.cpp
+@@ -56,6 +56,14 @@
+ REXCVAR_DEFINE_BOOL(present_letterbox, true, "UI/Presenter",
+                     "Enable letterboxing for non-native aspect ratios");
+ 
++// WWE 2K17 port: show the picture at another shape than the game's 16:9 (e.g. 20:9 stretches it sideways).
++REXCVAR_DEFINE_INT32(present_aspect_x, 0, "UI/Presenter",
++                     "Aspect ratio width to draw the picture at (0 = the game's own); used with present_aspect_y")
++    .range(0, 1000);
++REXCVAR_DEFINE_INT32(present_aspect_y, 0, "UI/Presenter",
++                     "Aspect ratio height to draw the picture at (0 = the game's own); used with present_aspect_x")
++    .range(0, 1000);
++
+ REXCVAR_DEFINE_INT32(present_safe_area_x, 90, "UI/Presenter",
+                      "Horizontal safe area percentage (0-100)")
+     .range(0, 100);
+@@ -716,6 +724,10 @@
+       guest_output_properties_[guest_output_mailbox_writable_];
+   writable_properties.frontbuffer_width = frontbuffer_width;
+   writable_properties.frontbuffer_height = frontbuffer_height;
++  if (REXCVAR_GET(present_aspect_x) > 0 && REXCVAR_GET(present_aspect_y) > 0) {
++    display_aspect_ratio_x = uint32_t(REXCVAR_GET(present_aspect_x));
++    display_aspect_ratio_y = uint32_t(REXCVAR_GET(present_aspect_y));
++  }
+   writable_properties.display_aspect_ratio_x = display_aspect_ratio_x;
+   writable_properties.display_aspect_ratio_y = display_aspect_ratio_y;
+   writable_properties.is_8bpc = false;

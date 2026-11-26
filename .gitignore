@@ -22,3 +22,7 @@ CMakeUserPresets.json
 # Local logs and crash dumps
 *.log
 *.dmp
+
+# Android build (tools/android/): build output, the SDK checkout, libadrenotools fetched by the build
+/out/
+/port/thirdparty/libadrenotools/

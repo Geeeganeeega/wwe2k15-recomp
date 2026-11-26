@@ -1,0 +1,28 @@
+# wwe2k17: Android audio: stereo output + 1024-frame device buffer (less delay, no 6-channel slow path)
+--- a/src/audio/sdl/sdl_audio_driver.cpp	2026-11-05 00:00:00.000000000 +0000
++++ b/src/audio/sdl/sdl_audio_driver.cpp	2026-11-05 00:00:01.000000000 +0000
+@@ -40,6 +40,10 @@
+ bool SDLAudioDriver::Initialize() {
+   // Set audio category for proper OS audio handling
+   SDL_SetHint(SDL_HINT_AUDIO_CATEGORY, "playback");
++#if defined(__ANDROID__)
++  // wwe2k17: a smaller device buffer = less audio delay (commentary, hits); stereo below keeps AAudio on its fast path.
++  SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "1024");
++#endif
+ 
+   // Set app name for audio device identification
+   SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_NAME_STRING, "rexglue");
+@@ -76,7 +80,13 @@
+ 
+   // A 1-channel device gets the stereo fold too, then SDL collapses to mono.
+   // Handing it a 6ch stream instead would use SDL's own downmix.
++#if defined(__ANDROID__)
++  // wwe2k17: phones report a 6-channel endpoint; multichannel streams lose AAudio's low-latency path (delayed, choppy
++  // sound). Always give the phone a stereo mix.
++  if (true) {
++#else
+   if (obtained_spec.channels <= 2) {
++#endif
+     SDL_DestroyAudioStream(sdl_stream_);
+     sdl_stream_ = nullptr;
+     desired_spec.channels = 2;
