@@ -34,8 +34,16 @@ jobs:
           # the SDK always builds SDL with its X11 / Wayland / audio backends: their development packages
           sudo apt-get install -y -q clang lld cmake ninja-build python3 pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libx11-xcb-dev libxcb1-dev libwayland-dev libwayland-bin wayland-protocols libdecor-0-dev libegl-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libpipewire-0.3-dev libdbus-1-dev libudev-dev
 
+      - name: A newer clang (Ubuntu 24.04's clang 18 lacks std::expected with its libstdc++; the phone's Ubuntu has 21)
+        run: |
+          for v in 21 20 19; do
+            if sudo apt-get install -y -q clang-$v lld-$v; then echo "CLANG_V=$v" >> "$GITHUB_ENV"; exit 0; fi
+          done
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 20
+          echo "CLANG_V=20" >> "$GITHUB_ENV"
+
       - name: Build rexglue (same script as on the phone)
-        run: CC=clang CXX=clang++ WORK="$PWD/out/host" tools/codegen/build_rexglue.sh
+        run: CC=clang-$CLANG_V CXX=clang++-$CLANG_V WORK="$PWD/out/host" tools/codegen/build_rexglue.sh
 
       - name: Package (the tool + the SDK libraries it loads, and the patch set it was built from)
         run: |
