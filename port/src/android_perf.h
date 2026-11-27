@@ -28,6 +28,11 @@ REXCVAR_DEFINE_INT32(wwe2k15_fps_limit, 0, "wwe2k15", "Frame limit: 0 = the game
 
 namespace wwe2k15::perf {
 
+// Thermal guard: while the phone's thermal headroom (Android's forecast: 1.0 = throttling) stays high, frames are held
+// to 30 per second; back to normal once it has cooled. Read once a second (the system wants at most one call a second).
+inline std::atomic<bool> g_thermal_cap{false};
+inline std::atomic<float> g_thermal_headroom{-1.f};
+
 // What LimitFrame decided, for the "[wwe2k15][fps]" log line (android_frame.h).
 inline std::atomic<int> g_even_rate{60};
 inline std::atomic<float> g_work_p50_ms{0}, g_work_p90_ms{0};
@@ -181,7 +186,8 @@ REXCVAR_DEFINE_INT32(wwe2k15_display_hz, 60, "wwe2k15", "The screen's refresh ra
 // steady stretch.
 inline void LimitFrame(uint32_t game_fps = 60) {
   static const int user = [] { const int l = REXCVAR_GET(wwe2k15_fps_limit); return l == 30 ? 30 : 60; }();
-  const int limit = (user == 30 || game_fps == 30) ? 30 : 60;
+  const bool hot = g_thermal_cap.load(std::memory_order_relaxed);
+  const int limit = (user == 30 || game_fps == 30 || hot) ? 30 : 60;
   using clock = std::chrono::steady_clock;
   static clock::time_point next = clock::now(), last_entry = clock::now();
   static double waited = 0;                 // seconds the last call slept
@@ -220,7 +226,7 @@ inline void LimitFrame(uint32_t game_fps = 60) {
   }
   double rate = std::min<double>(limit, target);
   g_even_rate.store(int(rate + 0.5), std::memory_order_relaxed);
-  if (game_fps == 30 || user == 30) rate = 30;
+  if (game_fps == 30 || user == 30 || hot) rate = 30;
   const auto period = std::chrono::nanoseconds(static_cast<long long>(1e9 / rate));
   waited = 0;
   if (now < next) {

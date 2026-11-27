@@ -106,12 +106,13 @@ public class LauncherActivity extends Activity {
         // Opened from the WebView home screen (HomeActivity): one page, or straight into the game.
         String openPage = getIntent() != null ? getIntent().getStringExtra(EXTRA_OPEN_PAGE) : null;
         boolean startNow = getIntent() != null && getIntent().getBooleanExtra(EXTRA_START_GAME, false);
-        fromHome = openPage != null || startNow;
-        if (!fromHome && !openedAsSettings && prefs.getBoolean("skip_launcher", false) && gameReady()) {
+        boolean viaHome = openPage != null || startNow;
+        if (!viaHome && !openedAsSettings && prefs.getBoolean("skip_launcher", false) && gameReady()) {
             startSoon();
             return;
         }
-        buildUi();
+        buildUi();  // (ends with showHome(): fromHome must still be false here, or the screen closes at once)
+        fromHome = viaHome;
         if (fromHome) {
             openFromHome(openPage, startNow);
             return;
@@ -475,6 +476,8 @@ public class LauncherActivity extends Activity {
         settings.addView(button("Add GPU driver (.zip)…", v -> pick(REQ_DRIVER, false)), wrap(dp(4)));
         settings.addView(checkbox("Sharper upscaling (SGSR)", prefs.getBoolean("upscaler", false),
                 c -> prefs.edit().putBoolean("upscaler", c).apply()));
+        settings.addView(checkbox("Keep the phone cooler: 30 FPS while the phone reports it is getting hot",
+                prefs.getBoolean("thermal_guard", true), c -> prefs.edit().putBoolean("thermal_guard", c).apply()));
         settings.addView(checkbox("Frame generation: an in-between picture for every frame (smoother, e.g. 30 shows as 60; "
                 + "controls stay at the game's speed, fast motion can smear a little)", prefs.getBoolean("frame_gen", false),
                 c -> prefs.edit().putBoolean("frame_gen", c).apply()));
@@ -1448,6 +1451,7 @@ public class LauncherActivity extends Activity {
             a.add("--wwe2k15_renderer=" + (prefs.getInt("renderer", 0) == 0 ? 1 : 0));
             if (prefs.getBoolean("upscaler", false)) a.add("--present_effect=sgsr");
             a.add("--present_frame_generation=" + prefs.getBoolean("frame_gen", false));
+            a.add("--wwe2k15_thermal_guard=" + prefs.getBoolean("thermal_guard", true));
             a.add("--present_letterbox=" + !prefs.getBoolean("stretch", false));
             a.add("--wwe2k15_show_fps=" + prefs.getBoolean("show_fps", false));
             a.add("--wwe2k15_big_cores=" + prefs.getBoolean("big_cores", true));

@@ -26,7 +26,53 @@ extern std::atomic<uint64_t> g_wwe2k15_present_count;  // framerate_hook.cpp
 bool Wwe2k15SceneAt60();                                // framerate_hook.cpp
 uint32_t Wwe2k15StepEffectiveRate();                    // framerate_hook.cpp: 30 while the real-time 30 step is on
 
+#include <cmath>
+#include <dlfcn.h>
+
+REXCVAR_DEFINE_BOOL(wwe2k15_thermal_guard, true, "wwe2k15",
+                    "Hold the game to 30 FPS while Android reports the phone is close to throttling (thermal headroom)");
+
 namespace wwe2k15::android_frame {
+
+// The phone's thermal headroom (ADPF, Android 11+; looked up in libandroid.so, so older phones just get no reading).
+// Above 0.95 for 5 s: 30 FPS cap on (android_perf.h LimitFrame). Below 0.75 for 20 s: off again.
+inline void ThermalTick() {
+  if (!REXCVAR_GET(wwe2k15_thermal_guard)) return;
+  using Acquire = void* (*)();
+  using Headroom = float (*)(void*, int);
+  static void* mgr = nullptr;
+  static Headroom headroom = nullptr;
+  static bool tried = false;
+  if (!tried) {
+    tried = true;
+    if (void* lib = dlopen("libandroid.so", RTLD_NOW)) {
+      auto acquire = reinterpret_cast<Acquire>(dlsym(lib, "AThermal_acquireManager"));
+      headroom = reinterpret_cast<Headroom>(dlsym(lib, "AThermal_getThermalHeadroom"));
+      if (acquire && headroom) mgr = acquire();
+    }
+    REXLOG_INFO("[wwe2k15][thermal] guard {}", mgr ? "on (reads the phone's thermal headroom)" : "unavailable on this phone");
+  }
+  if (!mgr) return;
+  static auto last = std::chrono::steady_clock::now() - std::chrono::seconds(2);
+  const auto now = std::chrono::steady_clock::now();
+  if (now - last < std::chrono::seconds(1)) return;
+  last = now;
+  const float h = headroom(mgr, 0);
+  if (std::isnan(h)) return;
+  wwe2k15::perf::g_thermal_headroom.store(h, std::memory_order_relaxed);
+  static int hot_s = 0, cool_s = 0;
+  hot_s = h > 0.95f ? hot_s + 1 : 0;
+  cool_s = h < 0.75f ? cool_s + 1 : 0;
+  bool cap = wwe2k15::perf::g_thermal_cap.load(std::memory_order_relaxed);
+  if (!cap && hot_s >= 5) {
+    wwe2k15::perf::g_thermal_cap.store(true, std::memory_order_relaxed);
+    REXLOG_INFO("[wwe2k15][thermal] phone is hot (headroom {:.2f}): 30 FPS until it cools down", h);
+  } else if (cap && cool_s >= 20) {
+    wwe2k15::perf::g_thermal_cap.store(false, std::memory_order_relaxed);
+    REXLOG_INFO("[wwe2k15][thermal] cooled down (headroom {:.2f}): normal frame rate again", h);
+  }
+}
+
 
 // The game's timing struct (framerate_hook.cpp, TU4): +8 = the fps the game runs at (60, or 30 in entrances and
 // victory scenes unless wwe2k15_60fps keeps them at 60).
@@ -54,6 +100,7 @@ inline void OnPresent() {
     if (n > 60) wwe2k15::perf_hint::g_perf_hint.OnFrame(std::chrono::duration<double, std::milli>(now - last).count());
     last = now;
   }
+  ThermalTick();
   wwe2k15::perf::LimitFrame(game_fps);
   {  // every 5 s: what the frame rate is and why ("[wwe2k15][fps]" in the log, for FPS reports)
     static auto t0 = std::chrono::steady_clock::now();
@@ -61,8 +108,10 @@ inline void OnPresent() {
     const auto now = std::chrono::steady_clock::now();
     const double secs = std::chrono::duration<double>(now - t0).count();
     if (secs >= 5.0) {
-      REXLOG_INFO("[wwe2k15][fps] {:.1f} fps | game mode {} | real-speed 30 {} | pacing cap {} | frame work p50 {:.1f} ms p90 {:.1f} ms",
+      REXLOG_INFO("[wwe2k15][fps] {:.1f} fps | game mode {} | real-speed 30 {} | heat {:.2f}{} | pacing cap {} | frame work p50 {:.1f} ms p90 {:.1f} ms",
                   double(n - n0) / secs, game_fps, Wwe2k15StepEffectiveRate() ? "ON" : "off",
+                  wwe2k15::perf::g_thermal_headroom.load(std::memory_order_relaxed),
+                  wwe2k15::perf::g_thermal_cap.load(std::memory_order_relaxed) ? " (30 FPS cap)" : "",
                   wwe2k15::perf::g_even_rate.load(std::memory_order_relaxed),
                   wwe2k15::perf::g_work_p50_ms.load(std::memory_order_relaxed),
                   wwe2k15::perf::g_work_p90_ms.load(std::memory_order_relaxed));
