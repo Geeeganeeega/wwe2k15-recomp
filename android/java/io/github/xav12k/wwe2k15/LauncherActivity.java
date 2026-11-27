@@ -49,14 +49,22 @@ public class LauncherActivity extends Activity {
     private static final int REQ_ISO = 1;
     private static final int REQ_PACKAGE = 2;
     private static final int REQ_DRIVER = 8;
+    private static final int REQ_PICK_ISO = 9;
+    private static final int REQ_PICK_FOLDER = 10;
 
     // Resolution: the draw height on the phone (the SDK draws at 720p x resolution_scale, or lower with
     // gpu_native_truth_draw_height), as in the WWE 2K17 port.
     private static final String[] RES_LABELS = {"360p (fastest)", "480p", "540p", "720p (original)", "1080p", "1440p (sharpest)"};
     private static final int[] RES_HEIGHTS = {360, 480, 540, 720, 1080, 1440};
-    private static final String[] FPS_LABELS = {"60 FPS, entrances at 30 (like the original)",
-            "60 FPS everywhere (recommended; back to 30 if too slow)", "Lock matches to 30 FPS (cooler, longer battery)"};
-    private static final String[] GPU_LABELS = {"Balanced (recommended)", "Fast (more shortcuts, may flicker)"};
+    // The game moves a fixed step per frame, so below 60 FPS it plays in slow motion. "30 FPS at real speed" uses the
+    // game's own 30-updates-a-second timing instead (WWE 2K14 port's fix, port/src/framerate_hook.cpp step30).
+    private static final String[] FPS_LABELS = {
+            "Automatic (recommended): 60 FPS, real-speed 30 FPS if the phone can't keep up",
+            "60 FPS everywhere (can slow down on weaker phones)",
+            "30 FPS at real speed (weaker phones, cooler, longer battery)",
+            "Original: 60 FPS matches, 30 FPS entrances"};
+    // port/src/android_gpu_profile.h: the WWE 2K14 port's NATIVE renderer, or the SDK's standard Xenos emulation.
+    private static final String[] RENDERER_LABELS = {"NATIVE (from WWE 2K14, faster)", "Standard (safest, if NATIVE draws something wrong)"};
 
     // WWE 2K15 look: the WWE '13 launcher's layout in deep red, the game's bright red, white bold capitals.
     private static final int BG = 0xFF1A0306;
@@ -233,11 +241,16 @@ public class LauncherActivity extends Activity {
         statusText = text("", 15, TEXT);
         files.addView(statusText);
         LinearLayout fileButtons = row();
-        fileButtons.addView(button("Install from my disc image (.iso)…", v -> pick(REQ_ISO, false)));
-        fileButtons.addView(button("Add title update or DLC…", v -> pick(REQ_PACKAGE, true)));
+        fileButtons.addView(button("Choose disc image (.iso)…", v -> chooseGame(false)));
+        fileButtons.addView(button("Choose game folder…", v -> chooseGame(true)));
         files.addView(fileButtons);
-        files.addView(text("Use your own WWE 2K15 Xbox 360 disc image and Title Update 4. The game is copied into the app, "
-                + "so you can delete the image afterwards (about 8 GB free space needed).", 13, DIM));
+        LinearLayout fileButtons2 = row();
+        fileButtons2.addView(button("Add title update or DLC…", v -> pick(REQ_PACKAGE, true)));
+        fileButtons2.addView(button("Copy an .iso into the app…", v -> pick(REQ_ISO, false)));
+        files.addView(fileButtons2);
+        files.addView(text("Use your own WWE 2K15 Xbox 360 game: a disc image (.iso) or an unpacked game folder (the one "
+                + "with default.xex), played where it is. Then add Title Update 4 (the tu00000004_00000000 file) and any DLC. "
+                + "\"Copy an .iso into the app\" is for phones that block reading the game in place (about 8 GB).", 13, DIM));
         packageList = new LinearLayout(this);
         packageList.setOrientation(LinearLayout.VERTICAL);
         files.addView(packageList);
@@ -247,10 +260,10 @@ public class LauncherActivity extends Activity {
         LinearLayout settings = section(page, "Graphics");
         settings.addView(spinnerRow("Resolution", RES_LABELS, prefs.getInt("resolution", 3),
                 i -> prefs.edit().putInt("resolution", i).apply()));
-        settings.addView(spinnerRow("Frame rate", FPS_LABELS, prefs.getInt("frame_rate", 1),
-                i -> prefs.edit().putInt("frame_rate", i).apply()));
-        settings.addView(spinnerRow("GPU profile", GPU_LABELS, prefs.getInt("gpu_profile", 0),
-                i -> prefs.edit().putInt("gpu_profile", i).apply()));
+        settings.addView(spinnerRow("Frame rate", FPS_LABELS, prefs.getInt("frame_rate2", 0),
+                i -> prefs.edit().putInt("frame_rate2", i).apply()));
+        settings.addView(spinnerRow("Renderer", RENDERER_LABELS, prefs.getInt("renderer", 0),
+                i -> prefs.edit().putInt("renderer", i).apply()));
         final List<String> driverIds = driverIds();
         List<String> driverLabels = new ArrayList<>();
         for (String id : driverIds) driverLabels.add(driverLabel(id));
@@ -440,10 +453,13 @@ public class LauncherActivity extends Activity {
         @Override public int getOpacity() { return android.graphics.PixelFormat.OPAQUE; }
     }
     private void refresh() {
-        boolean base = GameFiles.gameInstalled();
-        boolean tu = GameFiles.titleUpdatePresent();
+        File game = gameRoot();
+        boolean base = game != null;
+        boolean tu = GameFiles.titleUpdatePresent() || (game != null && game.isDirectory() && new File(game, "default.xexp").isFile());
         StringBuilder sb = new StringBuilder();
-        sb.append(base ? "✔ Game installed" : "✘ Game not installed — install it from your disc image");
+        sb.append(base ? "✔ Game: " + game.getAbsolutePath() : "✘ No game yet — choose your disc image or game folder");
+        if (base && !hasAllFiles() && !game.getAbsolutePath().startsWith(root.getAbsolutePath()))
+            sb.append("\n✘ Allow \"All files access\" for WWE 2K15 (choose the game again to be asked)");
         sb.append("\n");
         sb.append(tu ? "✔ Title Update 4" : "✘ Title Update 4 missing — add the title update file");
         int dlc = GameFiles.dlcCount();
@@ -491,7 +507,131 @@ public class LauncherActivity extends Activity {
     private boolean showAllBackups;
 
     private boolean gameReady() {
-        return GameFiles.gameInstalled() && GameFiles.titleUpdatePresent();
+        File g = gameRoot();
+        return g != null && (GameFiles.titleUpdatePresent() || (g.isDirectory() && new File(g, "default.xexp").isFile()));
+    }
+
+    // ------------------------------------------------------------------------------------------ the game's location
+
+    /** The game to run: the chosen disc image / folder (read in place), else a copy installed into the app. */
+    private File gameRoot() {
+        String p = prefs.getString("game_path", "");
+        if (!p.isEmpty()) {
+            File f = new File(p);
+            if (f.isFile() && p.toLowerCase(Locale.ROOT).endsWith(".iso")) return f;
+            if (new File(f, "default.xex").isFile()) return f;
+            if (!hasAllFiles() && (f.exists() || p.startsWith("/storage/"))) return f;  // can't look yet: trust the choice
+        }
+        return GameFiles.gameInstalled() ? GameFiles.gameDir() : null;
+    }
+
+    private boolean hasAllFiles() {
+        return android.os.Build.VERSION.SDK_INT < 30 || android.os.Environment.isExternalStorageManager();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (statusText != null) refresh();  // back from the "All files access" settings, for example
+    }
+
+    private void chooseGame(boolean folder) {
+        if (android.os.Build.VERSION.SDK_INT < 30
+                && checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                        != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] {android.Manifest.permission.READ_EXTERNAL_STORAGE}, 1);
+        }
+        if (!hasAllFiles()) {
+            new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle("All files access")
+                    .setMessage("To play the game where it is (no 8 GB copy), WWE 2K15 needs to read it. On the next screen, "
+                            + "turn on \"Allow access to manage all files\", come back, and choose the game again.")
+                    .setPositiveButton("Open settings", (d, w) -> {
+                        try {
+                            startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                    Uri.parse("package:" + getPackageName())));
+                        } catch (Exception e) {
+                            startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                        }
+                    })
+                    .setNegativeButton("Cancel", null).show();
+            return;
+        }
+        if (folder) {
+            startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_PICK_FOLDER);
+        } else {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("*/*");
+            startActivityForResult(i, REQ_PICK_ISO);
+        }
+    }
+
+    /** A picker's answer as a real path ("primary:Download/x.iso" -> /storage/emulated/0/Download/x.iso), or null. */
+    private static String uriToPath(Uri uri, boolean tree) {
+        try {
+            String id = tree ? android.provider.DocumentsContract.getTreeDocumentId(uri)
+                    : android.provider.DocumentsContract.getDocumentId(uri);
+            if (id.startsWith("raw:")) return id.substring(4);
+            int c = id.indexOf(':');
+            if (c < 0) return null;
+            String vol = id.substring(0, c), rest = id.substring(c + 1);
+            String base = vol.equalsIgnoreCase("primary") ? "/storage/emulated/0" : "/storage/" + vol;
+            return rest.isEmpty() ? base : base + "/" + rest;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void useGamePath(Uri uri, boolean folder) {
+        String p = uriToPath(uri, folder);
+        if (p == null) {
+            toastDialog("Couldn't use that location. Pick it from the phone's storage (Internal storage > ...), "
+                    + "not from \"Recent\" or \"Downloads\".");
+            return;
+        }
+        File f = new File(p);
+        if (folder && !new File(f, "default.xex").isFile()) {
+            // a folder one level up (e.g. 2K15 holding 545408B6/default.xex)
+            File[] subs = f.listFiles(File::isDirectory);
+            if (subs != null) for (File d : subs) if (new File(d, "default.xex").isFile()) { f = d; break; }
+        }
+        if (folder && !new File(f, "default.xex").isFile()) {
+            toastDialog("No default.xex in " + f.getAbsolutePath() + ". Choose the folder that holds the game's default.xex.");
+            return;
+        }
+        if (!folder && !(f.isFile() && p.toLowerCase(Locale.ROOT).endsWith(".iso"))) {
+            toastDialog("That is not an .iso file the app can read: " + p);
+            return;
+        }
+        prefs.edit().putString("game_path", f.getAbsolutePath()).apply();
+        // A title update package next to the game (its folder or the one above, e.g. 2K15/tu00000004_00000000):
+        // added by itself.
+        if (!GameFiles.titleUpdatePresent() && !(folder && new File(f, "default.xexp").isFile())) {
+            File parent = f.getParentFile();
+            for (File dir : new File[] {f.isDirectory() ? f : parent, f.isDirectory() ? parent : null}) {
+                File[] files = dir == null ? null : dir.listFiles(File::isFile);
+                if (files == null) continue;
+                for (File c : files) {
+                    GameFiles.Package pk = GameFiles.inspect(c);
+                    if (pk == null || pk.type != GameFiles.TYPE_TITLE_UPDATE || pk.titleId != GameFiles.TITLE_ID) continue;
+                    try {
+                        File copy = new File(getCacheDir(), c.getName());
+                        try (InputStream in = new java.io.FileInputStream(c); OutputStream out = new FileOutputStream(copy)) {
+                            GameFiles.copyStream(in, out);
+                        }
+                        if (GameFiles.importPackage(copy).isEmpty()) break;
+                    } catch (Exception ignored) {
+                    }
+                }
+                if (GameFiles.titleUpdatePresent()) break;
+            }
+        }
+        String note = GameFiles.titleUpdatePresent() ? "\nTitle Update 4 found and added." : "";
+        if (folder && new File(f, "default.xexp").isFile()) note = "\nTitle update (default.xexp) found next to it.";
+        else if (note.isEmpty()) note = "\nNow add Title Update 4 with \"Add title update or DLC…\".";
+        toastDialog("Game: " + f.getAbsolutePath() + note);
+        refresh();
     }
 
     // ------------------------------------------------------------------------------------------ launch
@@ -500,7 +640,9 @@ public class LauncherActivity extends Activity {
     private void startGame() {
         try {
             List<String> a = new ArrayList<>();
-            a.add("--game_data_root=" + GameFiles.gameDir().getAbsolutePath());
+            File game = gameRoot();
+            if (game == null) { toastDialog("Choose your WWE 2K15 disc image or game folder first."); return; }
+            a.add("--game_data_root=" + game.getAbsolutePath());
             // Title update and DLC packages: the game unpacks / installs them itself (dlc_install.h).
             a.add("--wwe2k15_dlc_dir=" + GameFiles.dlcDir().getAbsolutePath());
             a.add("--wwe2k15_update_dir=" + GameFiles.updateDir().getAbsolutePath());
@@ -514,10 +656,11 @@ public class LauncherActivity extends Activity {
             int scale = h > 720 ? 2 : 1;
             a.add("--resolution_scale=" + scale);
             a.add("--gpu_native_truth_draw_height=" + (h >= 720 * scale ? 0 : h));
-            int fps = prefs.getInt("frame_rate", 1);
-            a.add("--wwe2k15_60fps=" + (fps == 1));
-            a.add("--wwe2k15_fps_limit=" + (fps == 2 ? 30 : 0));
-            a.add("--wwe2k15_gpu_profile=" + (prefs.getInt("gpu_profile", 0) == 1 ? 2 : 1));
+            int fps = Math.max(0, Math.min(3, prefs.getInt("frame_rate2", 0)));
+            a.add("--wwe2k15_60fps=" + (fps == 0 || fps == 1));          // entrances at 60
+            a.add("--wwe2k15_step30=" + (fps == 0 ? 2 : fps == 2 ? 1 : 0));  // real-speed 30: auto / always / off
+            a.add("--wwe2k15_fps_limit=0");
+            a.add("--wwe2k15_renderer=" + (prefs.getInt("renderer", 0) == 0 ? 1 : 0));
             if (prefs.getBoolean("upscaler", false)) a.add("--present_effect=sgsr");
             a.add("--present_letterbox=" + !prefs.getBoolean("stretch", false));
             a.add("--wwe2k15_show_fps=" + prefs.getBoolean("show_fps", false));
@@ -668,6 +811,8 @@ public class LauncherActivity extends Activity {
             case REQ_ISO: installIso(uris.get(0)); break;
             case REQ_PACKAGE: installPackages(uris); break;
             case REQ_DRIVER: installDriver(uris.get(0)); break;
+            case REQ_PICK_ISO: useGamePath(uris.get(0), false); break;
+            case REQ_PICK_FOLDER: useGamePath(uris.get(0), true); break;
         }
     }
 
@@ -675,6 +820,7 @@ public class LauncherActivity extends Activity {
         runLong("Installing the game from your disc image", () -> {
             try (ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r")) {
                 String err = GameFiles.extractIso("/proc/self/fd/" + pfd.getFd());
+                if (err.isEmpty()) prefs.edit().remove("game_path").apply();
                 return err.isEmpty() ? "WWE 2K15 is installed." + (GameFiles.titleUpdatePresent() ? ""
                         : "\nNow add Title Update 4 with \"Add title update or DLC…\".") : err;
             }

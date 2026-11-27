@@ -24,6 +24,7 @@
 
 extern std::atomic<uint64_t> g_wwe2k15_present_count;  // framerate_hook.cpp
 bool Wwe2k15SceneAt60();                                // framerate_hook.cpp
+uint32_t Wwe2k15StepEffectiveRate();                    // framerate_hook.cpp: 30 while the real-time 30 step is on
 
 namespace wwe2k15::android_frame {
 
@@ -36,6 +37,7 @@ inline uint32_t GameFps() {
   if (!memory) return 60;
   const uint32_t fps =
       rex::memory::load_and_swap<uint32_t>(memory->TranslateVirtual<const uint8_t*>(kTimingStruct + 8));
+  if (const uint32_t step = Wwe2k15StepEffectiveRate()) return step;  // real-time 30 step (word kept at 60)
   if (Wwe2k15SceneAt60()) return 60;
   return fps == 30 || fps == 25 ? 30 : 60;
 }

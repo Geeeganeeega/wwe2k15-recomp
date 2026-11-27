@@ -5,7 +5,7 @@ borrows from two other ports:
 
 | From | What |
 |---|---|
-| **WWE 2K14 recomp** (Jarrodfeng/wwe2k14-recomp, BSD 3-Clause) | the whole ReXGlue SDK: all of Jarrod's patches (`patches/rexglue-sdk/full/001-...` to `119-...`, copied unchanged), with its Android support (ARM64 code, Adreno fixes, SDL on Android, custom Vulkan drivers, phone frame pacing); the game's Android helpers (driver loader, performance hint, missing-function scan) |
+| **WWE 2K14 recomp** (Jarrodfeng/wwe2k14-recomp, BSD 3-Clause) | the whole ReXGlue SDK: all of Jarrod's patches (`patches/rexglue-sdk/full/001-...` to `119-...`, copied unchanged), with its Android support (ARM64 code, Adreno fixes, SDL on Android, custom Vulkan drivers, phone frame pacing); the game's Android helpers (driver loader, performance hint, missing-function scan), the real-speed 30 FPS step (`step_rate.h`, ported into `port/src/framerate_hook.cpp`), the NATIVE renderer's settings (`port/src/android_gpu_profile.h`) |
 | **WWE '13 Android port** (dzepdzep/wwe13-recomp-android, BSD 3-Clause) | the app: the WWE-style launcher (PLAY, GRAPHICS, GAME, CONTROLS, SAVES, UPDATES pages, here in WWE 2K15 red), install from your disc image, the touch controls made for WWE games and their layout editor, in-app updates |
 | **WWE 2K15 PC** (`port/`) | the game-specific code: TU4 function hints, 60 FPS entrances, the Create-a-Championship freeze fix (#33), crash guards, text / keyboard hooks, mods folder, ISO + title update loading |
 
@@ -50,12 +50,14 @@ The first run builds the SDK (long, cached afterwards). The APK lands on the **d
 ## 4. On the phone
 
 1. Install the APK and open **WWE 2K15**.
-2. PLAY page: **Install from my disc image (.iso)…** and pick your own WWE 2K15 Xbox 360 image. The game is copied
-   into the app (about 8 GB), so the image can be deleted afterwards. Stopped halfway? Pick it again: it continues.
-3. **Add title update or DLC…**: Title Update 4 (required) and any DLC packs you own (Xbox 360 package files). The game
-   unpacks / installs them itself the next time it starts.
-4. GRAPHICS: resolution, frame rate, GPU profile, driver (the phone's own, or the bundled Turnip). CONTROLS: touch
-   controls (Edit touch layout to move them). Then **PLAY**.
+2. PLAY page: **Choose disc image (.iso)…** or **Choose game folder…** (an unpacked game: the folder with
+   default.xex, or the one above it). The game is played where it is; the app asks once for "All files access".
+   (**Copy an .iso into the app…** copies it instead, about 8 GB, for phones that block that access.)
+3. Title Update 4: found by itself when the `tu00000004_00000000` file sits next to the game folder, otherwise
+   **Add title update or DLC…** (DLC packs the same way). The game unpacks / installs them at its next start.
+4. GRAPHICS: resolution, **frame rate** (Automatic = 60 FPS, and real-speed 30 FPS when the phone can't hold 60 instead
+   of slow motion: the WWE 2K14 port's step-rate fix), **renderer** (NATIVE = the WWE 2K14 port's native renderer;
+   Standard if NATIVE draws something wrong), driver. CONTROLS: touch controls. Then **PLAY**.
 5. When something breaks: **Save the last game log to Downloads** on the PLAY page, and send the log.
 
 ## "Call to invalid or unregistered function" / "No function registered at ..."

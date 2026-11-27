@@ -1,12 +1,18 @@
-// wwe2k15 (from the user's WWE 2K17 Android port) - GPU setting profiles for Android phones (Adreno has no fragment shader interlock, so the SDK's default
-// "accurate" render-target path is the wrong one there). The settings are an earlier port's Android defaults
-// (wwe2k14_app.h / gfx_settings.h NativeRendererFlags, BSD 3-Clause), minus the parts tied
-// to that game (its crowd shader tricks, its D3D-library draw skipping). All of them are SDK settings.
+// wwe2k15 Android - renderer settings. All of them come from the WWE 2K14 port (Jarrodfeng/wwe2k14-recomp, BSD
+// 3-Clause): its Android defaults (src/wwe2k14_app.h, Session 63-95) and its NATIVE renderer's list
+// (src/gfx_settings.h NativeRendererFlags). They are SDK settings (Jarrod's SDK patches), not tied to WWE 2K14's code.
 //
-//   --wwe2k15_gpu_profile=0   SAFE      nothing set: the SDK's own defaults
-//   --wwe2k15_gpu_profile=1   BALANCED  the native renderer on the host render-target path + the generic speed-ups
-//   --wwe2k15_gpu_profile=2   FAST      BALANCED + the native renderer's resolve / texture-load shortcuts
-// A setting given on the command line (extra arguments) always wins: only settings left at default are changed.
+//   --wwe2k15_renderer=1   NATIVE (default): Jarrod's native renderer - truth frames without EDRAM, the host render-target
+//                          path (Adreno has no fragment shader interlock), lean draws, direct resolves / texture loads.
+//   --wwe2k15_renderer=0   STANDARD: the SDK's Xenos emulation with only the phone basics (the safe fallback).
+//
+// Left out of the NATIVE list (WWE 2K14 content or its TRUE NATIVE renderer, which hooks 2K14's own D3D functions):
+//   gpu_native_shader_swap: 2K14 post-effect shader copies (2K14 shader hashes)
+//   gpu_native_owned_frame: needs TRUE NATIVE (2K14 d3d_owned, game-specific)
+//   gpu_scene_crowd_cull: 2K14 crowd scene data
+//   gpu_scene_crowd_thin: 2K14 crowd scene data
+// WWE 2K15's own settings (the PC port's wwe2k15.toml; a config file beside the exe is not read on Android) are set
+// for both. A setting given on the command line (the launcher's extra arguments) always wins.
 #pragma once
 
 #include <rex/cvar.h>
@@ -14,68 +20,74 @@
 
 #include <string>
 #include <utility>
-#include <algorithm>
 #include <vector>
 
-REXCVAR_DEFINE_INT32(wwe2k15_gpu_profile, 1, "wwe2k15", "Android GPU profile: 0 safe, 1 balanced, 2 fast");
+REXCVAR_DEFINE_INT32(wwe2k15_renderer, 1, "wwe2k15", "Android renderer: 1 NATIVE (WWE 2K14 port's), 0 STANDARD").range(0, 1);
 
 namespace wwe2k15::gpu_profile {
 
+using KV = std::pair<const char*, const char*>;
+
+// The WWE 2K14 port's NATIVE renderer list (gfx_settings.h NativeRendererFlags), minus the items above.
+inline const std::vector<KV>& NativeFlags() {
+  static const std::vector<KV> f = {
+      KV{"gpu_native", "2"}, KV{"gpu_fast_clear", "true"},
+      KV{"gpu_native_truth", "true"}, KV{"gpu_native_half2_skip_gpr_draws", "true"},
+      KV{"gpu_native_half2", "2"}, KV{"gpu_native_lean_draws", "true"},
+      KV{"gpu_native_trust_geometry_pages", "true"}, KV{"gpu_native_truth_skip_writeback", "true"},
+      KV{"vulkan_merge_adjacent_barriers", "true"}, KV{"gpu_native_gpu_timers", "false"},
+      KV{"gpu_native_truth_direct_resolve_scaled", "true"}, KV{"gpu_native_truth_fill_direct", "true"},
+      KV{"vulkan_texture_load_direct_unscaled", "true"}, KV{"vulkan_texture_load_direct_unscaled_any_page", "true"},
+      KV{"gpu_native_truth_direct_resolve_scaled_full", "true"}, KV{"gpu_native_truth_direct_resolve_scaled_texture", "true"},
+      KV{"gpu_native_truth_defer_dest_use", "true"}, KV{"gpu_native_truth_texture_fill_scaled", "true"},
+      KV{"gpu_native_truth_texture_fill_scaled_kinds", "32"}, KV{"gpu_native_truth_batch_resolves", "true"},
+      KV{"gpu_native_truth_batch_rename", "true"}, KV{"gpu_native_truth_lazy_pass_deps", "true"},
+      KV{"gpu_native_truth_lazy_pass_style", "1"}, KV{"gpu_native_truth_rename_depth", "true"},
+      KV{"vulkan_texture_sample_written_early", "true"}, KV{"gpu_native_lean_benign_writes", "true"},
+      KV{"gpu_native_truth_skip_writeback_scaled", "true"}, KV{"gpu_native_truth_defer_dest_use_scaled", "true"},
+      KV{"gpu_native_truth_batch_fills", "true"}, KV{"gpu_native_truth_direct_resolve_scaled_full_texture", "true"},
+      KV{"gpu_native_truth_direct_resolve_full_1x", "true"}, KV{"vulkan_texture_native_storage_small", "true"},
+      KV{"gpu_native_truth_fill_direct_small", "true"}, KV{"gpu_native_truth_fill_direct_depth", "true"},
+      KV{"gpu_native_truth_direct_resolve_depth", "true"}, KV{"gpu_native_truth_direct_resolve_scaled_small", "true"},
+      KV{"vulkan_uniform_pool_device_local", "true"}, KV{"vulkan_device_local_upload_min_heap_mb", "128"},
+      KV{"gpu_native_truth_host_rt", "true"}, KV{"gpu_native_truth_pass_dont_care", "true"},
+      KV{"gpu_native_truth_color_none", "true"}, KV{"gpu_native_vertex_endian_spec", "true"},
+      KV{"gpu_native_ps_texture_spec", "true"}, KV{"gpu_native_ps_mul_mode", "2"},
+      KV{"gpu_native_ps_implicit_lod", "true"}, KV{"gpu_native_fma", "3"},
+      KV{"gpu_native_truth_drop_dead_resolves", "1"}, KV{"gpu_native_vs_mul_mode", "1"},
+      KV{"gpu_native_vs_mul_fetch_finite", "true"}, KV{"gpu_native_ps_epilogue_spec", "true"},
+      KV{"gpu_native_truth_skip_restores", "true"}, KV{"gpu_native_truth_skip_repeat_resolves", "true"},
+      KV{"gpu_native_truth_fill_rename_check", "true"},
+  };
+  return f;
+}
+
 inline void Apply() {
-  // the Safe profile (0) is gone: it skipped draws with "invalid" texture types (missing geometry), so 0 acts as 1
-  const int profile = std::max(1, int(REXCVAR_GET(wwe2k15_gpu_profile)));
-  using KV = std::pair<const char*, const char*>;
-  std::vector<KV> set;
-  if (profile >= 1) {
-    for (KV kv : {KV{"resolution_scale", "1"}, KV{"gpu_native", "2"}, KV{"gpu_fast_clear", "true"}, // WWE 2K15: must stay false (true showed stale textures on the PC port)
-                  KV{"gpu_allow_invalid_fetch_constants", "false"},
-                  // the PC port's wwe2k15.toml (a config file beside the exe is not read on Android)
-                  KV{"async_shader_compilation", "true"}, KV{"use_fuzzy_alpha_epsilon", "true"},
-                  KV{"gpu_native_truth", "true"}, KV{"gpu_native_truth_host_rt", "true"},
-                  KV{"gpu_native_gpu_timers", "false"}, KV{"vulkan_merge_adjacent_barriers", "true"},
-                  // no vertex-shader stores / non-solid fill needed; lets more phone GPUs start
-                  KV{"vulkan_require_vertex_pipeline_stores_and_atomics", "false"},
-                  KV{"vulkan_require_fill_mode_non_solid", "false"},
-                  // command-processor speed-ups (each verified identical on the PC by an earlier port)
-                  KV{"gpu_wait_reg_mem_spin", "true"}, KV{"vulkan_async_submit", "true"},
-                  KV{"vulkan_submit_on_wait", "true"}, KV{"vulkan_deferred_descriptor_writes", "true"},
-                  KV{"gpu_type0_bulk_writes", "true"}, KV{"gpu_type0_block_split", "true"},
-                  KV{"gpu_request_ranges_fast", "true"}, KV{"vulkan_constants_dynamic_offsets", "true"}, KV{"vulkan_viewport_info_cache", "true"},
-                  KV{"vulkan_vertex_residency_cache_off", "true"}, KV{"vulkan_async_swap", "true"}})
-      set.push_back(kv);
-  }
-  // Less log writing: the native renderer reports every 60 frames (thousands of lines in a match)
-  if (profile >= 1) set.push_back(KV{"gpu_native_report_frames", "1800"});
-  if (profile >= 2) {
-    // a draw whose pipeline is still being compiled is skipped (the frame is shown again) instead of waiting for it:
-    // fewer stalls, but a few black frames at the start of a match
-    // (vulkan_pipeline_no_submit_wait is no longer set: it caused black frames at the start of a match)
-    // texture caches that skip work when nothing "changed": a stale texture shows as flicker / black textures, so FAST only
-    for (KV kv : {KV{"vulkan_reuse_texture_bindings", "true"}, KV{"vulkan_sampler_param_cache", "true"},
-                  KV{"gpu_request_textures_skip_unchanged", "true"}, KV{"gpu_upload_skip_unchanged", "true"}})
-      set.push_back(kv);
-    // Texture loads (the game re-loads ~24 textures / ~23 MB every frame, nearly all rewritten whole from GPU
-    // resolves): skipping the old contents saves memory traffic on tile-based GPUs, the scratch ring overlaps loads.
-    // FAST only: not verified on Mali (Dimensity) GPUs, so they are not on by default.
-    for (KV kv : {KV{"vulkan_texture_load_discard_old", "true"}, KV{"vulkan_texture_load_scratch_ring", "true"}})
-      set.push_back(kv);
-    for (KV kv : {KV{"gpu_native_truth_skip_writeback", "true"}, KV{"gpu_native_truth_fill_direct", "true"},
-                  KV{"vulkan_texture_load_direct_unscaled", "true"},
-                  KV{"vulkan_texture_load_direct_unscaled_any_page", "true"},
-                  KV{"gpu_native_truth_defer_dest_use", "true"}, KV{"gpu_native_truth_batch_resolves", "true"},
-                  KV{"gpu_native_truth_batch_rename", "true"}, KV{"gpu_native_truth_lazy_pass_deps", "true"},
-                  KV{"gpu_native_truth_lazy_pass_style", "1"}, KV{"gpu_native_truth_rename_depth", "true"},
-                  KV{"vulkan_texture_sample_written_early", "true"}, KV{"gpu_native_truth_batch_fills", "true"},
-                  KV{"gpu_native_truth_direct_resolve_full_1x", "true"}, KV{"gpu_native_truth_pass_dont_care", "true"},
-                  KV{"gpu_native_truth_color_none", "true"}, KV{"gpu_native_truth_skip_restores", "true"},
-                  KV{"gpu_native_truth_skip_repeat_resolves", "true"}, KV{"gpu_native_truth_fill_rename_check", "true"}})
-      set.push_back(kv);
+  const int renderer = REXCVAR_GET(wwe2k15_renderer);
+  std::vector<KV> set = {
+      // WWE 2K15 (PC port): must stay false (true showed stale textures); shaders compiled in the background; the
+      // alpha test's tolerance.
+      KV{"gpu_allow_invalid_fetch_constants", "false"}, KV{"async_shader_compilation", "true"},
+      KV{"use_fuzzy_alpha_epsilon", "true"},
+      // WWE 2K14 Android (wwe2k14_app.h): 720p unless the launcher picks more; Mali drivers have no vertex shader stores,
+      // no line / point fill and (some) no geometry shader, none needed by the game.
+      KV{"resolution_scale", "1"},
+      KV{"vulkan_require_vertex_pipeline_stores_and_atomics", "false"}, KV{"vulkan_require_fill_mode_non_solid", "false"},
+      KV{"vulkan_require_geometry_shader", "false"},
+      // WWE 2K14 Session 74: resolves read back in one batch, small one-off copies (16 KB cube faces) on their own.
+      KV{"readback_resolve_batch", "true"}, KV{"readback_resolve_batch_min_bytes", "16385"},
+      // Less log writing: the native renderer reports every 60 frames otherwise.
+      KV{"gpu_native_report_frames", "1800"},
+  };
+  if (renderer == 1) {
+    const auto& n = NativeFlags();
+    set.insert(set.end(), n.begin(), n.end());
   }
   int applied = 0;
   std::string failed, kept;
   for (const auto& [name, value] : set) {
     if (rex::cvar::GetFlagSource(name) != rex::cvar::Source::kDefault) {
-      kept += std::string(" ") + name;  // set by the command line / config: left alone
+      kept += std::string(" ") + name;  // set on the command line: left alone
     } else if (rex::cvar::SetFlagByName(name, value)) {
       ++applied;
     } else {
@@ -83,9 +95,10 @@ inline void Apply() {
     }
   }
   if (!failed.empty()) REXLOG_WARN("[wwe2k15][gpu] not applied (unknown or rejected):{}", failed);
-  if (!kept.empty()) REXLOG_INFO("[wwe2k15][gpu] left as set elsewhere:{}", kept);
-  REXLOG_INFO("[wwe2k15][gpu] profile {} ({}): {} settings applied", profile,
-              profile == 0 ? "safe" : profile == 1 ? "balanced" : "fast", applied);
+  if (!kept.empty()) REXLOG_INFO("[wwe2k15][gpu] left as set on the command line:{}", kept);
+  REXLOG_INFO("[wwe2k15][gpu] renderer {}: {} settings applied; gpu_native={} truth={} host_rt={}",
+              renderer == 1 ? "NATIVE (WWE 2K14 port)" : "STANDARD", applied, rex::cvar::GetFlagByName("gpu_native"),
+              rex::cvar::GetFlagByName("gpu_native_truth"), rex::cvar::GetFlagByName("gpu_native_truth_host_rt"));
 }
 
 }  // namespace wwe2k15::gpu_profile
