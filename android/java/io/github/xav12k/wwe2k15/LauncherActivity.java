@@ -29,6 +29,7 @@ import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
@@ -82,6 +83,7 @@ public class LauncherActivity extends Activity {
     private Button playButton;
     private LinearLayout packageList;
     private LinearLayout backupList;
+    private TextView logSessionText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -177,39 +179,86 @@ public class LauncherActivity extends Activity {
     private void buildUi() {
         tabs.clear();
         tabButtons.clear();
-        // Two panes like the game's menus: the menu on the left, the chosen page on the right, over a red X.
-        LinearLayout rootView = new LinearLayout(this);
-        rootView.setOrientation(LinearLayout.HORIZONTAL);
-        rootView.setBackground(new XBackground());
+        // WWE 2K-style home: a title area, the HOME heading with L1 / R1, two rows of big tiles (the selected one lit in
+        // red, the others dark), and a button-hint bar. A tile opens its page; B / back comes back HOME.
+        FrameLayout rootView = new FrameLayout(this);
+        rootView.setBackground(new HomeBackground());
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setPadding(dp(36), dp(18), dp(36), dp(10));
+        rootView.addView(column, new FrameLayout.LayoutParams(-1, -1));
 
-        LinearLayout nav = new LinearLayout(this);
-        nav.setOrientation(LinearLayout.VERTICAL);
-        nav.setPadding(dp(28), dp(22), dp(12), dp(16));
-        TextView logo = text("WWE 2K15", 40, TEXT);
-        logo.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
-        logo.setShadowLayer(dp(6), 0, 0, ACCENT);
-        nav.addView(logo);
-        View bar = new View(this);
-        bar.setBackgroundColor(ACCENT);
-        nav.addView(bar, new LinearLayout.LayoutParams(dp(170), dp(4)));
-        TextView ver = text("ANDROID PORT  ·  v" + Updater.currentVersion(this), 11, DIM);
-        ver.setLetterSpacing(0.08f);
-        nav.addView(ver);
-        navItems = new LinearLayout(this);
-        navItems.setOrientation(LinearLayout.VERTICAL);
-        navItems.setPadding(0, dp(14), 0, 0);
-        nav.addView(navItems);
-        ScrollView navScroll = new ScrollView(this);
-        navScroll.addView(nav);
-        rootView.addView(navScroll, new LinearLayout.LayoutParams(dp(250), ViewGroup.LayoutParams.MATCH_PARENT));
+        // -- HOME
+        homeView = new LinearLayout(this);
+        homeView.setOrientation(LinearLayout.VERTICAL);
+        TextView title = text("WWE 2K15", 54, TEXT);
+        title.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
+        title.setShadowLayer(dp(14), 0, 0, 0xCCE3141C);
+        title.setLetterSpacing(0.02f);
+        homeView.addView(title);
+        TextView sub = text("ANDROID  ·  RECOMPILED", 13, 0xFFE8D4D6);
+        sub.setLetterSpacing(0.3f);
+        homeView.addView(sub);
+        homeStatus = text("", 13, DIM);
+        homeStatus.setPadding(0, dp(4), 0, 0);
+        homeView.addView(homeStatus);
+        View grow = new View(this);
+        homeView.addView(grow, new LinearLayout.LayoutParams(1, 0, 1f));
+        homeView.addView(heading("HOME"));
+        android.widget.GridLayout grid = new android.widget.GridLayout(this);
+        grid.setRowCount(2);
+        grid.setColumnCount(4);
+        android.widget.HorizontalScrollView tilesScroll = new android.widget.HorizontalScrollView(this);
+        tilesScroll.setHorizontalScrollBarEnabled(false);
+        tilesScroll.setClipChildren(false);
+        grid.setClipChildren(false);
+        tilesScroll.addView(grid);
+        homeView.addView(tilesScroll, new LinearLayout.LayoutParams(-1, -2));
+        String[][] tiles = {{"PLAY", "PLAY", "\u25B6"}, {"GAME FILES", "PLAY", "\u25A4"}, {"GRAPHICS", "GRAPHICS", "\u25C8"},
+                {"CONTROLS", "CONTROLS", "\u271C"}, {"GAME", "GAME", "\u2605"}, {"SAVES", "SAVES", "\u21BB"},
+                {"LOGS", "LOGS", "\u2630"}, {"UPDATES", "UPDATES", "\u2B07"}};
+        firstTile = null;
+        for (String[] t : tiles) {
+            final String page = t[1];
+            View tile = t[0].equals("PLAY") ? tile(t[0], t[2], v -> { if (gameReady()) startGame(); else showTab("PLAY"); })
+                    : tile(t[0], t[2], v -> showTab(page));
+            android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams();
+            lp.width = dp(230);
+            lp.height = dp(108);
+            lp.setMargins(0, 0, dp(12), dp(12));
+            grid.addView(tile, lp);
+            if (firstTile == null) firstTile = tile;
+        }
+        column.addView(homeView, new LinearLayout.LayoutParams(-1, 0, 1f));
 
+        // -- a page (opened from a tile)
+        pageView = new LinearLayout(this);
+        pageView.setOrientation(LinearLayout.VERTICAL);
+        pageTitle = heading("");
+        pageView.addView(pageTitle);
         ScrollView scroll = new ScrollView(this);
         contentScroll = scroll;
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(12), dp(22), dp(28), dp(28));
+        page.setPadding(0, dp(4), dp(8), dp(16));
         scroll.addView(page);
-        rootView.addView(scroll, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        pageView.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        column.addView(pageView, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        // -- button hints, version
+        LinearLayout hints = new LinearLayout(this);
+        hints.setOrientation(LinearLayout.HORIZONTAL);
+        hints.setGravity(Gravity.CENTER_VERTICAL);
+        hints.setPadding(0, dp(6), 0, 0);
+        hintText = text("", 13, TEXT);
+        hintText.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        hintText.setLetterSpacing(0.06f);
+        hints.addView(hintText, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView ver = text("v" + Updater.currentVersion(this) + "\nANDROID PORT", 11, TEXT);
+        ver.setGravity(Gravity.END);
+        ver.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        hints.addView(ver);
+        column.addView(hints);
 
         // ---- PLAY
         currentTab = "PLAY";
@@ -234,7 +283,6 @@ public class LauncherActivity extends Activity {
                 prefs.getBoolean("skip_launcher", false), c -> prefs.edit().putBoolean("skip_launcher", c).apply());
         page.addView(skip);
         tag(skip);
-        addLogNotice(page);
 
         // Game files
         LinearLayout files = section(page, "Game files");
@@ -320,6 +368,27 @@ public class LauncherActivity extends Activity {
         settings.addView(text("Touch controls: tap RUN to switch running on or off (or push the stick past its ring). HIDE / SHOW "
                 + "in the game's top-right corner hides the buttons and brings them back; hold it (or use Edit touch layout) to move and resize them.", 13, DIM));
 
+        // ---- LOGS (like the user's UFC Undisputed 3 launcher: last session, view, share, copy, clear)
+        currentTab = "LOGS";
+        LinearLayout last = section(page, "Last session");
+        logSessionText = text("", 15, TEXT);
+        last.addView(logSessionText);
+        last.addView(listItem("Open log", "View", this::viewLog));
+        last.addView(listItem("Share logs", "Share", this::shareLogs));
+        last.addView(listItem("Copy logs", "Copy", this::copyLogs));
+        last.addView(listItem("Save logs to Downloads", "Save", this::saveLogsToDownloads));
+        last.addView(text("When something breaks: Share (or Copy) the logs and send them. They hold the game's log, "
+                + "Android's log for the app (it shows why the game stopped before its own log started) and the settings it "
+                + "started with.", 13, DIM));
+        LinearLayout manage = section(page, "Manage");
+        manage.addView(listItem("Clear all logs", "Clear", () -> confirm("Delete all the game's logs?", () -> {
+            File[] logs = new File(root, "logs").listFiles(File::isFile);
+            int n = 0;
+            if (logs != null) for (File f : logs) if (f.delete()) ++n;
+            toastDialog(n + " logs deleted.");
+            refresh();
+        })));
+
         // ---- UPDATES
         currentTab = "UPDATES";
         LinearLayout upd = section(page, "Updates");
@@ -341,18 +410,9 @@ public class LauncherActivity extends Activity {
         backupList.setOrientation(LinearLayout.VERTICAL);
         saves.addView(backupList);
 
-        // The menu on the left: one entry per page that has something on it.
-        for (String name : new String[] {"PLAY", "GRAPHICS", "GAME", "CONTROLS", "SAVES", "UPDATES"}) {
-            if (!tabs.containsKey(name)) continue;
-            final String n = name;
-            Button b = navButton(name, v -> showTab(n));
-            tabButtons.put(name, b);
-            navItems.addView(b, matchWidth(dp(2)));
-        }
         setContentView(rootView);
         refresh();
-        showTab(prefs.getString("launcher_tab", "PLAY"));
-        playButton.requestFocus();
+        showHome();
     }
 
     // ------------------------------------------------------------------------------------------ pages
@@ -368,14 +428,220 @@ public class LauncherActivity extends Activity {
         l.add(v);
     }
 
+    private static final String[] PAGE_ORDER = {"PLAY", "GRAPHICS", "CONTROLS", "GAME", "SAVES", "LOGS", "UPDATES"};
+    private static final java.util.Map<String, String> PAGE_TITLES = new java.util.HashMap<String, String>() {{
+        put("PLAY", "GAME FILES"); put("GRAPHICS", "GRAPHICS"); put("CONTROLS", "CONTROLS"); put("GAME", "GAME");
+        put("SAVES", "SAVES"); put("LOGS", "LOGS"); put("UPDATES", "UPDATES");
+    }};
+    private LinearLayout homeView, pageView;
+    private LinearLayout pageTitle;
+    private TextView homeStatus, hintText;
+    private View firstTile, lastTile;
+    private boolean onHome = true;
+
+    private void showHome() {
+        onHome = true;
+        if (homeView == null) return;
+        homeView.setVisibility(View.VISIBLE);
+        pageView.setVisibility(View.GONE);
+        hintText.setText("\u24B6 SELECT     \u24B7 QUIT     \u2190\u2192 MOVE");
+        if (homeStatus != null) homeStatus.setText(gameReady() ? "READY TO PLAY" : "CHOOSE YOUR GAME IN GAME FILES");
+        View f = lastTile != null ? lastTile : firstTile;
+        if (f != null) f.requestFocus();
+    }
+
     private void showTab(String name) {
         if (!tabs.containsKey(name)) name = "PLAY";
         shownTab = name;
+        onHome = false;
+        if (homeView != null) {
+            View cur = getCurrentFocus();
+            if (cur != null && cur.getTag() instanceof String && "tile".equals(cur.getTag())) lastTile = cur;
+            homeView.setVisibility(View.GONE);
+            pageView.setVisibility(View.VISIBLE);
+            ((TextView) pageTitle.getChildAt(1)).setText(PAGE_TITLES.containsKey(name) ? PAGE_TITLES.get(name) : name);
+            hintText.setText("\u24B6 SELECT     \u24B7 BACK     L1 / R1 PAGES");
+        }
         prefs.edit().putString("launcher_tab", name).apply();
         for (java.util.Map.Entry<String, List<View>> e : tabs.entrySet())
             for (View v : e.getValue()) v.setVisibility(e.getKey().equals(name) ? View.VISIBLE : View.GONE);
         for (java.util.Map.Entry<String, Button> e : tabButtons.entrySet()) e.getValue().setSelected(e.getKey().equals(name));
         if (contentScroll != null) contentScroll.scrollTo(0, 0);
+        List<View> shown = tabs.get(name);
+        if (shown != null && !shown.isEmpty()) shown.get(0).requestFocus();
+    }
+
+    private void nextPage(int dir) {
+        int i = java.util.Arrays.asList(PAGE_ORDER).indexOf(shownTab);
+        showTab(PAGE_ORDER[(i + dir + PAGE_ORDER.length) % PAGE_ORDER.length]);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!onHome && homeView != null) {
+            showHome();
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent e) {
+        if (e.getAction() == android.view.KeyEvent.ACTION_DOWN && homeView != null && !startPending) {
+            switch (e.getKeyCode()) {
+                case android.view.KeyEvent.KEYCODE_BUTTON_B:
+                    onBackPressed();
+                    return true;
+                case android.view.KeyEvent.KEYCODE_BUTTON_L1:
+                    if (onHome) showTab(PAGE_ORDER[PAGE_ORDER.length - 1]); else nextPage(-1);
+                    return true;
+                case android.view.KeyEvent.KEYCODE_BUTTON_R1:
+                    if (onHome) showTab(PAGE_ORDER[0]); else nextPage(1);
+                    return true;
+            }
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
+    /** The section heading of the 2K menus: L1 / R1 badges and a big bold title. */
+    private LinearLayout heading(String title) {
+        LinearLayout h = new LinearLayout(this);
+        h.setOrientation(LinearLayout.HORIZONTAL);
+        h.setGravity(Gravity.CENTER_VERTICAL);
+        h.setPadding(0, dp(4), 0, dp(10));
+        LinearLayout badges = new LinearLayout(this);
+        badges.setOrientation(LinearLayout.VERTICAL);
+        for (String b : new String[] {"L1", "R1"}) {
+            TextView t = text(b, 9, TEXT);
+            t.setTypeface(Typeface.DEFAULT_BOLD);
+            t.setGravity(Gravity.CENTER);
+            GradientDrawable g = new GradientDrawable();
+            g.setCornerRadii(new float[] {dp(3), dp(3), dp(3), dp(3), dp(8), dp(8), dp(8), dp(8)});
+            g.setStroke(dp(1), 0xFFE0E0E0);
+            t.setBackground(g);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(30), dp(17));
+            lp.bottomMargin = dp(2);
+            badges.addView(t, lp);
+        }
+        h.addView(badges);
+        TextView t = text(title, 34, TEXT);
+        t.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        t.setPadding(dp(10), 0, 0, 0);
+        h.addView(t);
+        return h;
+    }
+
+    /** A big home tile: drawn art (dark, or lit red when selected) and a white label box in the lower-left corner. */
+    private View tile(String label, String glyph, View.OnClickListener l) {
+        FrameLayout f = new FrameLayout(this);
+        f.setTag("tile");
+        f.setFocusable(true);
+        f.setClickable(true);
+        f.setOnClickListener(l);
+        TileArt art = new TileArt(glyph);
+        f.setBackground(art);
+        TextView name = text(label, 15, Color.BLACK);
+        name.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        name.setBackgroundColor(Color.WHITE);
+        name.setPadding(dp(6), dp(1), dp(6), dp(1));
+        name.setLetterSpacing(0.04f);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
+        lp.setMargins(0, 0, 0, dp(14));
+        f.addView(name, lp);
+        f.setOnFocusChangeListener((v, has) -> {
+            art.lit = has;
+            art.invalidateSelf();
+            v.animate().scaleX(has ? 1.04f : 1f).scaleY(has ? 1.04f : 1f).setDuration(120).start();
+            v.setElevation(has ? dp(8) : 0);
+            if (has) lastTile = v;
+        });
+        f.setOnTouchListener((v, ev) -> {
+            if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN) v.requestFocus();
+            return false;
+        });
+        f.setFocusableInTouchMode(false);
+        return f;
+    }
+
+    /** Tile art: a dark grey card, or lit in WWE 2K15 red with bright streaks; a big faint symbol on the right. */
+    private final class TileArt extends android.graphics.drawable.Drawable {
+        final String glyph;
+        boolean lit;
+        final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        TileArt(String glyph) { this.glyph = glyph; }
+        @Override public void draw(android.graphics.Canvas c) {
+            android.graphics.Rect b = getBounds();
+            float w = b.width(), h = b.height();
+            p.setShader(new android.graphics.LinearGradient(0, 0, w, h,
+                    lit ? new int[] {0xFFFF3A3F, 0xFFC4101A, 0xFF4A0207} : new int[] {0xFF3A3A40, 0xFF1C1C21, 0xFF0C0C0F},
+                    null, android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(b, p);
+            p.setShader(null);
+            // diagonal streaks
+            p.setStrokeWidth(dp(lit ? 3 : 2));
+            for (int i = 0; i < 4; ++i) {
+                p.setColor(lit ? (0x55FFFFFF - i * 0x10000000) : (0x22FFFFFF - i * 0x06000000));
+                float x = w * (0.25f + i * 0.17f);
+                c.drawLine(x, h, x + h * 0.9f, 0, p);
+            }
+            // a glow
+            p.setShader(new android.graphics.RadialGradient(w * 0.72f, h * 0.35f, h * 0.9f,
+                    lit ? 0x88FFFFFF : 0x22FFFFFF, 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(b, p);
+            p.setShader(null);
+            // the big symbol
+            p.setColor(lit ? 0xEEFFFFFF : 0x55FFFFFF);
+            p.setTextSize(h * 0.72f);
+            p.setTextAlign(android.graphics.Paint.Align.CENTER);
+            p.setTypeface(Typeface.DEFAULT_BOLD);
+            c.drawText(glyph, w * 0.74f, h * 0.68f, p);
+            // the frame
+            p.setStyle(android.graphics.Paint.Style.STROKE);
+            p.setStrokeWidth(dp(lit ? 3 : 1));
+            p.setColor(lit ? Color.WHITE : 0x55FFFFFF);
+            c.drawRect(b.left + p.getStrokeWidth() / 2, b.top + p.getStrokeWidth() / 2, b.right - p.getStrokeWidth() / 2,
+                    b.bottom - p.getStrokeWidth() / 2, p);
+            p.setStyle(android.graphics.Paint.Style.FILL);
+        }
+        @Override public void setAlpha(int a) {}
+        @Override public void setColorFilter(android.graphics.ColorFilter f) {}
+        @Override public int getOpacity() { return android.graphics.PixelFormat.OPAQUE; }
+    }
+
+    /** The home background: deep blue light from the top left, red light from the bottom, bright diagonal beams. */
+    private final class HomeBackground extends android.graphics.drawable.Drawable {
+        final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        @Override public void draw(android.graphics.Canvas c) {
+            android.graphics.Rect b = getBounds();
+            float w = b.width(), h = b.height();
+            c.drawColor(0xFF050814);
+            p.setShader(new android.graphics.RadialGradient(w * 0.15f, h * 0.05f, w * 0.75f, 0xFF123A86, 0x00050814,
+                    android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(b, p);
+            p.setShader(new android.graphics.RadialGradient(w * 0.55f, h * 1.1f, w * 0.7f, 0xEEB0101A, 0x00050814,
+                    android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(b, p);
+            p.setShader(new android.graphics.RadialGradient(w * 0.7f, h * 0.3f, w * 0.35f, 0x5566A8FF, 0x00000000,
+                    android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(b, p);
+            p.setShader(null);
+            // light beams
+            p.setStrokeWidth(dp(3));
+            float[][] beams = {{0.10f, 0.55f, 0.55f, 0.0f, 0x6688C8FF}, {0.30f, 0.40f, 0.60f, 0.05f, 0x55FFFFFF},
+                    {0.45f, 1.0f, 0.95f, 0.55f, 0x66FF3040}};
+            for (float[] bm : beams) {
+                p.setColor((int) bm[4]);
+                c.drawLine(w * bm[0], h * bm[1], w * bm[2], h * bm[3], p);
+            }
+            // a dark band behind the tiles
+            p.setShader(new android.graphics.LinearGradient(0, h * 0.45f, 0, h, 0x00000000, 0xAA000000,
+                    android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(0, h * 0.45f, w, h, p);
+            p.setShader(null);
+        }
+        @Override public void setAlpha(int a) {}
+        @Override public void setColorFilter(android.graphics.ColorFilter f) {}
+        @Override public int getOpacity() { return android.graphics.PixelFormat.OPAQUE; }
     }
 
     private Button navButton(String label, View.OnClickListener l) {
@@ -475,6 +741,12 @@ public class LauncherActivity extends Activity {
                     confirm("Remove " + pk.name + "?", () -> { GameFiles.removePackage(pk); refresh(); })));
         }
 
+        if (logSessionText != null) {
+            File log = newestLog();
+            logSessionText.setText(log == null ? "No game log yet (the game has not started far enough to write one)."
+                    : "Session  " + new java.text.SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
+                            .format(new java.util.Date(log.lastModified())) + "   (" + log.getName() + ")");
+        }
         backupList.removeAllViews();
         List<String[]> all = GameFiles.listBackups();
         int shown = showAllBackups ? all.size() : Math.min(3, all.size());
@@ -865,52 +1137,127 @@ public class LauncherActivity extends Activity {
 
     // ------------------------------------------------------------------------------------------ logs
 
-    // "Save logs": one zip in Downloads with the game's logs (<files>/logs), Android's log for this app (it shows why
-    // the game stopped when that happened before its own log started) and the start settings. Always shown.
-    private void addLogNotice(LinearLayout page) {
-        LinearLayout buttons = row();
-        buttons.addView(button("Save logs to Downloads (send them when something breaks)", v -> saveLogs()));
-        page.addView(buttons, wrap(dp(4)));
-        tag(buttons);
+    private File newestLog() {
+        File[] logs = new File(root, "logs").listFiles(f -> f.isFile() && (f.getName().endsWith(".log") || f.getName().endsWith(".txt")));
+        if (logs == null || logs.length == 0) return null;
+        File newest = logs[0];
+        for (File f : logs) if (f.lastModified() > newest.lastModified()) newest = f;
+        return newest;
     }
 
-    private void saveLogs() {
-        String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new java.util.Date());
-        String name = "WWE2K15-logs-" + stamp + ".zip";
+    private static String tail(File f, int maxBytes) {
+        if (f == null || !f.isFile()) return "";
+        try (java.io.RandomAccessFile r = new java.io.RandomAccessFile(f, "r")) {
+            long len = r.length(), start = Math.max(0, len - maxBytes);
+            byte[] b = new byte[(int) (len - start)];
+            r.seek(start);
+            r.readFully(b);
+            String t = new String(b, "UTF-8");
+            return start > 0 ? "...(start cut)...\n" + t.substring(Math.max(0, t.indexOf('\n') + 1)) : t;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** Android's log for this app (its own entries; the last maxLines lines). */
+    private static String logcat(int maxLines) {
         try {
-            android.content.ContentValues cv = new android.content.ContentValues();
-            cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
-            cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/zip");
-            Uri uri = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
-            int files = 0;
-            try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(getContentResolver().openOutputStream(uri))) {
-                File[] logs = new File(root, "logs").listFiles(File::isFile);
-                if (logs != null) {
-                    java.util.Arrays.sort(logs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-                    for (int n = 0; n < Math.min(logs.length, 5); ++n) files += addZip(z, logs[n], "logs/" + logs[n].getName());
-                }
-                files += addZip(z, new File(root, "launch_options.txt"), "launch_options.txt");
-                // Android's log for this app (its own entries: SDL, the game's native messages, crashes it saw)
-                try {
-                    Process p = Runtime.getRuntime().exec(new String[] {"logcat", "-d", "-v", "threadtime", "-t", "20000"});
-                    z.putNextEntry(new java.util.zip.ZipEntry("logcat.txt"));
-                    try (InputStream in = p.getInputStream()) { GameFiles.copyStream(in, z); }
-                    z.closeEntry();
-                    ++files;
-                } catch (Exception ignored) {
-                }
-                z.putNextEntry(new java.util.zip.ZipEntry("phone.txt"));
-                String info = "device: " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + "\nandroid: "
-                        + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")\nsoc: "
-                        + (android.os.Build.VERSION.SDK_INT >= 31 ? android.os.Build.SOC_MODEL : "?") + "\napp: "
-                        + Updater.currentVersion(this) + "\ngame: " + prefs.getString("game_path", "(copy in app)")
-                        + "\nall files access: " + hasAllFiles() + "\n";
-                z.write(info.getBytes("UTF-8"));
-                z.closeEntry();
+            Process p = Runtime.getRuntime().exec(new String[] {"logcat", "-d", "-v", "threadtime", "-t", Integer.toString(maxLines)});
+            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+            try (InputStream in = p.getInputStream()) { GameFiles.copyStream(in, bo); }
+            return bo.toString("UTF-8");
+        } catch (Exception e) {
+            return "(Android's log could not be read: " + e.getMessage() + ")";
+        }
+    }
+
+    private String phoneInfo() {
+        return "device: " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + "\nandroid: "
+                + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")\nsoc: "
+                + (android.os.Build.VERSION.SDK_INT >= 31 ? android.os.Build.SOC_MODEL : "?") + "\napp: "
+                + Updater.currentVersion(this) + "\ngame: " + prefs.getString("game_path", "(copy in app)")
+                + "\nall files access: " + hasAllFiles() + "\n";
+    }
+
+    /** The logs as one text: phone, start settings, the game's log (end) and Android's log (end). */
+    private String logText(int gameBytes, int logcatLines) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== WWE 2K15 Android logs ===\n").append(phoneInfo());
+        String opts = tail(new File(root, "launch_options.txt"), 8192);
+        if (!opts.isEmpty()) sb.append("\n=== launch options ===\n").append(opts);
+        File log = newestLog();
+        sb.append("\n=== game log: ").append(log == null ? "none" : log.getName()).append(" ===\n").append(tail(log, gameBytes));
+        sb.append("\n=== Android log (app) ===\n").append(logcat(logcatLines));
+        return sb.toString();
+    }
+
+    private void viewLog() {
+        String t = logText(256 * 1024, 2000);
+        TextView tv = text(t, 11, TEXT);
+        tv.setTypeface(Typeface.MONOSPACE);
+        tv.setTextIsSelectable(true);
+        tv.setPadding(dp(12), dp(8), dp(12), dp(8));
+        ScrollView sv = new ScrollView(this);
+        sv.addView(tv);
+        sv.post(() -> sv.fullScroll(View.FOCUS_DOWN));
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen)
+                .setTitle(newestLog() == null ? "Logs (Android's log only)" : "Log: " + newestLog().getName())
+                .setView(sv).setPositiveButton("Close", null)
+                .setNeutralButton("Copy", (d, w) -> copyLogs()).show();
+    }
+
+    private void copyLogs() {
+        // The clipboard takes a few hundred KB at most: the ends of the logs, where the trouble is.
+        String t = logText(150 * 1024, 1500);
+        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(ClipData.newPlainText("WWE 2K15 logs", t));
+        toastDialog("Logs copied (" + (t.length() / 1024) + " KB). Paste them in the chat.");
+    }
+
+    /** Writes the logs zip (game logs, Android's log, start settings, phone) into Downloads and returns its address. */
+    private Uri writeLogsZip() throws Exception {
+        String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new java.util.Date());
+        android.content.ContentValues cv = new android.content.ContentValues();
+        cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, "WWE2K15-logs-" + stamp + ".zip");
+        cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/zip");
+        Uri uri = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+        try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(getContentResolver().openOutputStream(uri))) {
+            File[] logs = new File(root, "logs").listFiles(File::isFile);
+            if (logs != null) {
+                java.util.Arrays.sort(logs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                for (int n = 0; n < Math.min(logs.length, 5); ++n) addZip(z, logs[n], "logs/" + logs[n].getName());
             }
-            toastDialog("Saved to Downloads: " + name + " (" + files + " files). Send that file.");
+            addZip(z, new File(root, "launch_options.txt"), "launch_options.txt");
+            z.putNextEntry(new java.util.zip.ZipEntry("logcat.txt"));
+            z.write(logcat(20000).getBytes("UTF-8"));
+            z.closeEntry();
+            z.putNextEntry(new java.util.zip.ZipEntry("phone.txt"));
+            z.write(phoneInfo().getBytes("UTF-8"));
+            z.closeEntry();
+        }
+        return uri;
+    }
+
+    private void saveLogsToDownloads() {
+        try {
+            writeLogsZip();
+            toastDialog("Saved to Downloads (WWE2K15-logs-....zip). Send that file.");
         } catch (Exception e) {
             toastDialog("Couldn't save the logs: " + e.getMessage());
+        }
+    }
+
+    private void shareLogs() {
+        try {
+            Uri uri = writeLogsZip();
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("application/zip");
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            send.putExtra(Intent.EXTRA_SUBJECT, "WWE 2K15 Android logs");
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(send, "Share the logs"));
+        } catch (Exception e) {
+            toastDialog("Couldn't share the logs: " + e.getMessage());
         }
     }
 
