@@ -16,7 +16,10 @@ REPO="${REPO:-Geeeganeeega/wwe2k15-android}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 : "${GAME:?set GAME=/path/to/your WWE 2K15 folder (default.xex + default.xexp)}"
 : "${TOKEN:?set TOKEN=your GitHub token}"
-case "$TOKEN" in *yourtoken*|"") echo "Put your real GitHub token in TOKEN=\"...\" (not ghp_yourtoken)." >&2; exit 2;; esac
+case "$TOKEN" in *yourtoken*|*REAL_TOKEN*|*paste*|"")
+  echo "TOKEN is still the example text. Put your own GitHub token there (GitHub -> Settings -> Developer settings ->" >&2
+  echo "Personal access tokens -> Tokens (classic) -> Generate, tick repo + workflow; it starts with ghp_)." >&2; exit 2;; esac
+export GIT_TERMINAL_PROMPT=0  # a wrong token fails with a message instead of waiting at a password prompt
 
 say() { printf '\n\033[1;31m==> %s\033[0m\n' "$*"; }
 
