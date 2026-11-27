@@ -370,7 +370,8 @@ inline uint8_t* NoGpuByte(uint8_t* base, uint32_t device) {
   return base + address + ::rex::memory::detail::PhysicalHostOffset(address);
 }
 }  // namespace wwe2k14::half2
-REX_HOOK_RAW(sub_82BADF20) {
+// WWE 2K15: framerate_hook.cpp already hooks the present (sub_82BADF20); it calls this in place of the game's function.
+inline REX_FUNC(Wwe2k15TnPresent) {
   using namespace wwe2k14::half2;
   rex::graphics::CommandProcessor* cp = Cp();
   if (!cp || !cp->half2_logging()) {
