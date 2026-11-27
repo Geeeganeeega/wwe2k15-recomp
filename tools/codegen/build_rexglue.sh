@@ -22,6 +22,9 @@ WORK="${WORK:-$ROOT/out/host}"
 SRC="$WORK/rexglue-sdk-src"
 BUILD="$WORK/sdk-build"
 JOBS="${JOBS:-$(nproc)}"
+# ReXGlue only builds with Clang; Ubuntu's default cc / c++ is GCC.
+export CC="${CC:-clang}" CXX="${CXX:-clang++}"
+command -v "$CXX" >/dev/null || { echo "clang++ not found: apt install clang" >&2; exit 2; }
 
 mkdir -p "$WORK"
 [ -d "$SRC/.git" ] || git clone https://github.com/rexglue/rexglue-sdk "$SRC"
