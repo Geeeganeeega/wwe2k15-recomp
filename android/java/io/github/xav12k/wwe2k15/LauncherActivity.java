@@ -54,6 +54,7 @@ public class LauncherActivity extends Activity {
     private static final int REQ_PICK_FOLDER = 10;
     private static final int REQ_BACKGROUND = 11;
     private static final int REQ_SPLASH = 12;
+    private static final int REQ_TILE_IMAGE = 13;
 
     // Resolution: the draw height on the phone (the SDK draws at 720p x resolution_scale, or lower with
     // gpu_native_truth_draw_height), as in the WWE 2K17 port.
@@ -290,6 +291,10 @@ public class LauncherActivity extends Activity {
         column.setOrientation(LinearLayout.VERTICAL);
         column.setPadding(dp(36), dp(18), dp(36), dp(10));
         rootView.addView(column, new FrameLayout.LayoutParams(-1, -1));
+        columnView = column;
+        // The home screen itself: the player's own WebView design (assets/launcher/index.html, made by Shadow Xavier).
+        homeWeb = makeHomeWeb();
+        if (homeWeb != null) rootView.addView(homeWeb, 0, new FrameLayout.LayoutParams(-1, -1));
 
         // -- HOME
         homeView = new LinearLayout(this);
@@ -466,6 +471,12 @@ public class LauncherActivity extends Activity {
         splashButtons.addView(button("Preview", v -> showSplash()));
         splashButtons.addView(button("Remove", v -> splashFile().delete()));
         look.addView(splashButtons);
+        look.addView(text("Tile pictures: on HOME, press and hold a tile to choose its picture; hold the WWE 2K15 title for the background.", 13, DIM));
+        look.addView(button("Remove all tile pictures", v -> {
+            File[] fs = tileImagesDir().listFiles();
+            if (fs != null) for (File f : fs) f.delete();
+            if (homeWeb != null) homeWeb.reload();
+        }), wrap(dp(4)));
         settings = section(page, "Game");
         settings.addView(checkbox("Run the game on the phone's fast CPU cores (recommended)", prefs.getBoolean("big_cores", true),
                 c -> prefs.edit().putBoolean("big_cores", c).apply()));
@@ -575,6 +586,154 @@ public class LauncherActivity extends Activity {
     private View firstTile, lastTile;
     private boolean onHome = true;
     private LinearLayout homeMark;
+    private LinearLayout columnView;
+    private android.webkit.WebView homeWeb;
+    private String pendingTileImage;
+
+    private File tileImagesDir() { return new File(getFilesDir(), "launcher_images"); }
+
+    /** The home screen as a WebView. Pictures: images/bg_home.jpg = the background picture (GAME > Look),
+     *  images/tile_<id>.jpg = the player's own tile pictures (long-press a tile); none are shipped with the app. */
+    private android.webkit.WebView makeHomeWeb() {
+        try {
+            android.webkit.WebView w = new android.webkit.WebView(this);
+            w.setBackgroundColor(0xFF140002);
+            android.webkit.WebSettings ws = w.getSettings();
+            ws.setJavaScriptEnabled(true);
+            ws.setCacheMode(android.webkit.WebSettings.LOAD_NO_CACHE);
+            ws.setAllowFileAccess(false);
+            ws.setMediaPlaybackRequiresUserGesture(true);
+            w.setVerticalScrollBarEnabled(false);
+            w.setHorizontalScrollBarEnabled(false);
+            w.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override
+                public android.webkit.WebResourceResponse shouldInterceptRequest(android.webkit.WebView v,
+                        android.webkit.WebResourceRequest req) {
+                    Uri u = req.getUrl();
+                    if (!"appassets.androidplatform.net".equals(u.getHost())) return notFound();
+                    String path = u.getPath() == null ? "" : u.getPath();
+                    try {
+                        if (path.startsWith("/launcher/images/")) {
+                            String name = path.substring("/launcher/images/".length());
+                            if (name.contains("/") || name.contains("..")) return notFound();
+                            File f = name.equals("bg_home.jpg") ? backgroundFile() : new File(tileImagesDir(), name);
+                            if (!f.isFile()) return notFound();
+                            return new android.webkit.WebResourceResponse("image/jpeg", null, new java.io.FileInputStream(f));
+                        }
+                        if (path.startsWith("/launcher/") && !path.contains("..")) {
+                            String mime = path.endsWith(".html") ? "text/html" : path.endsWith(".css") ? "text/css"
+                                    : path.endsWith(".js") ? "application/javascript" : "application/octet-stream";
+                            return new android.webkit.WebResourceResponse(mime, "UTF-8", getAssets().open(path.substring(1)));
+                        }
+                    } catch (java.io.IOException e) {
+                        return notFound();
+                    }
+                    return notFound();
+                }
+
+                @Override
+                public boolean shouldOverrideUrlLoading(android.webkit.WebView v, android.webkit.WebResourceRequest r) {
+                    return true;  // the home screen never navigates away
+                }
+
+                @Override
+                public void onPageFinished(android.webkit.WebView v, String url) {
+                    pushHomeInfo(null);
+                }
+            });
+            w.addJavascriptInterface(new HomeBridge(), "Android");
+            w.loadUrl("https://appassets.androidplatform.net/launcher/index.html");
+            return w;
+        } catch (Throwable t) {  // no WebView on this phone: the drawn home screen stays
+            android.util.Log.w("wwe2k15", "home WebView: " + t);
+            return null;
+        }
+    }
+
+    private static android.webkit.WebResourceResponse notFound() {
+        return new android.webkit.WebResourceResponse("text/plain", "UTF-8", 404, "Not Found",
+                new java.util.HashMap<>(), new java.io.ByteArrayInputStream(new byte[0]));
+    }
+
+    private void pushHomeInfo(String toast) {
+        if (homeWeb == null) return;
+        org.json.JSONObject o = new org.json.JSONObject();
+        try {
+            o.put("ready", gameReady() ? "READY TO PLAY" : "CHOOSE YOUR GAME IN GAME FILES");
+            o.put("version", "v" + Updater.currentVersion(this));
+            if (toast != null) o.put("toast", toast);
+        } catch (org.json.JSONException ignored) {
+        }
+        homeWeb.evaluateJavascript("window.setInfo&&setInfo(" + o + ")", null);
+    }
+
+    private final class HomeBridge {
+        @android.webkit.JavascriptInterface
+        public void launchGame() {
+            runOnUiThread(() -> { if (gameReady()) startGame(); else showTab("PLAY"); });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void openSection(String id) {
+            final String page;
+            switch (String.valueOf(id)) {
+                case "files": page = "PLAY"; break;
+                case "graphics": page = "GRAPHICS"; break;
+                case "controls": page = "CONTROLS"; break;
+                case "game": page = "GAME"; break;
+                case "saves": page = "SAVES"; break;
+                case "logs": page = "LOGS"; break;
+                case "updates": page = "UPDATES"; break;
+                default: page = "PLAY";
+            }
+            runOnUiThread(() -> showTab(page));
+        }
+
+        @android.webkit.JavascriptInterface
+        public void quit() { runOnUiThread(LauncherActivity.this::finish); }
+
+        @android.webkit.JavascriptInterface
+        public void prevPage() { runOnUiThread(() -> showTab(PAGE_ORDER[PAGE_ORDER.length - 1])); }
+
+        @android.webkit.JavascriptInterface
+        public void nextPage() { runOnUiThread(() -> showTab(PAGE_ORDER[0])); }
+
+        @android.webkit.JavascriptInterface
+        public void pickImage(String id) {
+            if (id == null || !id.matches("[a-z]{1,12}")) return;
+            runOnUiThread(() -> {
+                pendingTileImage = id;
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("image/*");
+                startActivityForResult(i, REQ_TILE_IMAGE);
+            });
+        }
+    }
+
+    private void setTileImage(Uri uri) {
+        String id = pendingTileImage;
+        pendingTileImage = null;
+        if (id == null) return;
+        try {
+            File dest;
+            if (id.equals("bg")) {
+                dest = backgroundFile();
+            } else {
+                tileImagesDir().mkdirs();
+                dest = new File(tileImagesDir(), "tile_" + id + ".jpg");
+            }
+            setPictureFile(uri, dest);
+            if (id.equals("bg") && homeBg != null) {
+                homeBg.picture = loadBackgroundPicture();
+                homeBg.invalidateSelf();
+            }
+        } catch (Exception e) {
+            toastDialog("Could not read that picture: " + e.getMessage());
+            return;
+        }
+        if (homeWeb != null) homeWeb.reload();
+    }
     private HomeBackground homeBg;
 
     /** Text filled with a top-to-bottom colour gradient (white to red) for the titles. */
@@ -631,6 +790,15 @@ public class LauncherActivity extends Activity {
     private void showHome() {
         onHome = true;
         if (homeView == null) return;
+        if (homeWeb != null) {
+            homeWeb.setVisibility(View.VISIBLE);
+            columnView.setVisibility(View.GONE);
+            if (homeMark != null) homeMark.setVisibility(View.GONE);
+            if (homeBg != null) homeBg.setVisible(false, false);
+            homeWeb.requestFocus();
+            pushHomeInfo(null);
+            return;
+        }
         homeView.setVisibility(View.VISIBLE);
         pageView.setVisibility(View.GONE);
         if (homeMark != null) homeMark.setVisibility(View.VISIBLE);
@@ -644,6 +812,10 @@ public class LauncherActivity extends Activity {
         if (!tabs.containsKey(name)) name = "PLAY";
         shownTab = name;
         onHome = false;
+        if (homeWeb != null) {
+            homeWeb.setVisibility(View.GONE);
+            columnView.setVisibility(View.VISIBLE);
+        }
         if (homeView != null) {
             View cur = getCurrentFocus();
             if (cur != null && cur.getTag() instanceof String && "tile".equals(cur.getTag())) lastTile = cur;
@@ -678,6 +850,23 @@ public class LauncherActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(android.view.KeyEvent e) {
+        if (onHome && homeWeb != null && homeWeb.getVisibility() == View.VISIBLE && !startPending
+                && findViewById(android.R.id.content) != null) {
+            String js = null;
+            switch (e.getKeyCode()) {
+                case android.view.KeyEvent.KEYCODE_DPAD_RIGHT: js = "select(sel+1)"; break;
+                case android.view.KeyEvent.KEYCODE_DPAD_LEFT: js = "select(sel-1)"; break;
+                case android.view.KeyEvent.KEYCODE_DPAD_DOWN: js = "select(sel<4?sel+4:sel)"; break;
+                case android.view.KeyEvent.KEYCODE_DPAD_UP: js = "select(sel>=4?sel-4:sel)"; break;
+                case android.view.KeyEvent.KEYCODE_BUTTON_A:
+                case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
+                case android.view.KeyEvent.KEYCODE_ENTER: js = "activate(sel)"; break;
+            }
+            if (js != null) {
+                if (e.getAction() == android.view.KeyEvent.ACTION_DOWN) homeWeb.evaluateJavascript(js, null);
+                return true;
+            }
+        }
         if (e.getAction() == android.view.KeyEvent.ACTION_DOWN && homeView != null && !startPending) {
             switch (e.getKeyCode()) {
                 case android.view.KeyEvent.KEYCODE_BUTTON_B:
@@ -1296,6 +1485,7 @@ public class LauncherActivity extends Activity {
             case REQ_PICK_ISO: useGamePath(uris.get(0), false); break;
             case REQ_PICK_FOLDER: useGamePath(uris.get(0), true); break;
             case REQ_BACKGROUND: setBackgroundPicture(uris.get(0)); break;
+            case REQ_TILE_IMAGE: setTileImage(uris.get(0)); break;
             case REQ_SPLASH:
                 try {
                     setPictureFile(uris.get(0), splashFile());
