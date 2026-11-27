@@ -52,6 +52,7 @@ public class LauncherActivity extends Activity {
     private static final int REQ_DRIVER = 8;
     private static final int REQ_PICK_ISO = 9;
     private static final int REQ_PICK_FOLDER = 10;
+    private static final int REQ_BACKGROUND = 11;
 
     // Resolution: the draw height on the phone (the SDK draws at 720p x resolution_scale, or lower with
     // gpu_native_truth_draw_height), as in the WWE 2K17 port.
@@ -182,7 +183,27 @@ public class LauncherActivity extends Activity {
         // WWE 2K-style home: a title area, the HOME heading with L1 / R1, two rows of big tiles (the selected one lit in
         // red, the others dark), and a button-hint bar. A tile opens its page; B / back comes back HOME.
         FrameLayout rootView = new FrameLayout(this);
-        rootView.setBackground(new HomeBackground());
+        homeBg = new HomeBackground();
+        homeBg.picture = loadBackgroundPicture();
+        rootView.setBackground(homeBg);
+        // The big "2K15" mark and the credit, top right of the home screen (original lettering).
+        homeMark = new LinearLayout(this);
+        homeMark.setOrientation(LinearLayout.VERTICAL);
+        homeMark.setGravity(Gravity.END);
+        TextView mark = gradientText("2K15", 76, new int[] {0xFFFFFFFF, 0xFFFFD0D0, 0xFFFF2A2A, 0xFF8A0008});
+        mark.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
+        mark.setShadowLayer(dp(18), 0, dp(2), 0xEE000000);
+        mark.setLetterSpacing(-0.02f);
+        homeMark.addView(mark);
+        TextView credit = text("MADE BY SHADOW XAVIER", 10, 0xFFFFE6E6);
+        credit.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        credit.setLetterSpacing(0.25f);
+        credit.setShadowLayer(dp(4), 0, 0, 0xFF000000);
+        credit.setPadding(0, 0, dp(6), 0);
+        homeMark.addView(credit);
+        FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
+        mlp.setMargins(0, dp(10), dp(36), 0);
+        rootView.addView(homeMark, mlp);
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setPadding(dp(36), dp(18), dp(36), dp(10));
@@ -191,12 +212,13 @@ public class LauncherActivity extends Activity {
         // -- HOME
         homeView = new LinearLayout(this);
         homeView.setOrientation(LinearLayout.VERTICAL);
-        TextView title = text("WWE 2K15", 44, TEXT);
+        TextView title = gradientText("WWE 2K15", 44, new int[] {0xFFFFFFFF, 0xFFFFE0E0, 0xFFFF3B3B});
         title.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
-        title.setShadowLayer(dp(14), 0, 0, 0xCCE3141C);
+        title.setShadowLayer(dp(16), 0, 0, 0xFFE3141C);
         title.setLetterSpacing(0.02f);
         homeView.addView(title);
-        TextView sub = text("ANDROID  ·  RECOMPILED", 13, 0xFFE8D4D6);
+        TextView sub = text("ANDROID  ·  RECOMPILED", 13, 0xFFFFD6D6);
+        sub.setShadowLayer(dp(4), 0, 0, 0xFF000000);
         sub.setLetterSpacing(0.3f);
         homeView.addView(sub);
         homeStatus = text("", 13, DIM);
@@ -334,6 +356,23 @@ public class LauncherActivity extends Activity {
 
         // ---- GAME
         currentTab = "GAME";
+        LinearLayout look = section(page, "Look");
+        look.addView(text("Put a picture of your own behind the home screen (it stays on this phone only).", 13, DIM));
+        LinearLayout lookButtons = row();
+        lookButtons.addView(button("Choose background picture…", v -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("image/*");
+            startActivityForResult(i, REQ_BACKGROUND);
+        }));
+        lookButtons.addView(button("Remove picture", v -> {
+            backgroundFile().delete();
+            if (homeBg != null) {
+                homeBg.picture = null;
+                homeBg.invalidateSelf();
+            }
+        }));
+        look.addView(lookButtons);
         settings = section(page, "Game");
         settings.addView(checkbox("Run the game on the phone's fast CPU cores (recommended)", prefs.getBoolean("big_cores", true),
                 c -> prefs.edit().putBoolean("big_cores", c).apply()));
@@ -442,12 +481,68 @@ public class LauncherActivity extends Activity {
     private TextView homeStatus, hintText;
     private View firstTile, lastTile;
     private boolean onHome = true;
+    private LinearLayout homeMark;
+    private HomeBackground homeBg;
+
+    /** Text filled with a top-to-bottom colour gradient (white to red) for the titles. */
+    private TextView gradientText(String s, int sp, final int[] colors) {
+        TextView t = new TextView(this) {
+            @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
+                super.onSizeChanged(w, h, ow, oh);
+                getPaint().setShader(new android.graphics.LinearGradient(0, getPaddingTop(), 0, h - getPaddingBottom(), colors, null,
+                        android.graphics.Shader.TileMode.CLAMP));
+            }
+        };
+        t.setText(s);
+        t.setTextSize(sp);
+        t.setTextColor(Color.WHITE);
+        t.setIncludeFontPadding(false);
+        return t;
+    }
+
+    private File backgroundFile() { return new File(getFilesDir(), "launcher_background"); }
+
+    /** The player's own background picture, if one was chosen (GAME > Look), scaled down to the screen. */
+    private android.graphics.Bitmap loadBackgroundPicture() {
+        File f = backgroundFile();
+        if (!f.isFile()) return null;
+        try {
+            android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeFile(f.getPath(), o);
+            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+            int max = Math.max(dm.widthPixels, dm.heightPixels);
+            o.inSampleSize = 1;
+            while (Math.max(o.outWidth, o.outHeight) / (o.inSampleSize * 2) >= max) o.inSampleSize *= 2;
+            o.inJustDecodeBounds = false;
+            return android.graphics.BitmapFactory.decodeFile(f.getPath(), o);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private void setBackgroundPicture(Uri uri) {
+        try (InputStream in = getContentResolver().openInputStream(uri);
+             java.io.FileOutputStream out = new java.io.FileOutputStream(backgroundFile())) {
+            byte[] b = new byte[65536];
+            int n;
+            while ((n = in.read(b)) > 0) out.write(b, 0, n);
+        } catch (Exception e) {
+            toastDialog("Could not read that picture: " + e.getMessage());
+            return;
+        }
+        if (homeBg != null) {
+            homeBg.picture = loadBackgroundPicture();
+            homeBg.invalidateSelf();
+        }
+    }
 
     private void showHome() {
         onHome = true;
         if (homeView == null) return;
         homeView.setVisibility(View.VISIBLE);
         pageView.setVisibility(View.GONE);
+        if (homeMark != null) homeMark.setVisibility(View.VISIBLE);
         hintText.setText("\u24B6 SELECT     \u24B7 QUIT     \u2190\u2192 MOVE");
         if (homeStatus != null) homeStatus.setText(gameReady() ? "READY TO PLAY" : "CHOOSE YOUR GAME IN GAME FILES");
         View f = lastTile != null ? lastTile : firstTile;
@@ -463,6 +558,7 @@ public class LauncherActivity extends Activity {
             if (cur != null && cur.getTag() instanceof String && "tile".equals(cur.getTag())) lastTile = cur;
             homeView.setVisibility(View.GONE);
             pageView.setVisibility(View.VISIBLE);
+            if (homeMark != null) homeMark.setVisibility(View.GONE);
             ((TextView) pageTitle.getChildAt(1)).setText(PAGE_TITLES.containsKey(name) ? PAGE_TITLES.get(name) : name);
             hintText.setText("\u24B6 SELECT     \u24B7 BACK     L1 / R1 PAGES");
         }
@@ -612,35 +708,51 @@ public class LauncherActivity extends Activity {
         @Override public int getOpacity() { return android.graphics.PixelFormat.OPAQUE; }
     }
 
-    /** The home background: deep blue light from the top left, red light from the bottom, bright diagonal beams. */
+    /** The home background: blood red with dark edges and white / red brush streaks; the player's picture on the right. */
     private final class HomeBackground extends android.graphics.drawable.Drawable {
-        final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        android.graphics.Bitmap picture;
+        final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG | android.graphics.Paint.FILTER_BITMAP_FLAG);
         @Override public void draw(android.graphics.Canvas c) {
             android.graphics.Rect b = getBounds();
             float w = b.width(), h = b.height();
-            c.drawColor(0xFF050814);
-            p.setShader(new android.graphics.RadialGradient(w * 0.15f, h * 0.05f, w * 0.75f, 0xFF123A86, 0x00050814,
-                    android.graphics.Shader.TileMode.CLAMP));
-            c.drawRect(b, p);
-            p.setShader(new android.graphics.RadialGradient(w * 0.55f, h * 1.1f, w * 0.7f, 0xEEB0101A, 0x00050814,
-                    android.graphics.Shader.TileMode.CLAMP));
-            c.drawRect(b, p);
-            p.setShader(new android.graphics.RadialGradient(w * 0.7f, h * 0.3f, w * 0.35f, 0x5566A8FF, 0x00000000,
-                    android.graphics.Shader.TileMode.CLAMP));
+            c.drawColor(0xFF140002);
+            p.setShader(new android.graphics.RadialGradient(w * 0.62f, h * 0.42f, w * 0.62f,
+                    new int[] {0xFFB3000C, 0xFF6A0006, 0x00140002}, new float[] {0f, 0.55f, 1f}, android.graphics.Shader.TileMode.CLAMP));
             c.drawRect(b, p);
             p.setShader(null);
-            // light beams
-            p.setStrokeWidth(dp(3));
-            float[][] beams = {{0.10f, 0.55f, 0.55f, 0.0f, 0x6688C8FF}, {0.30f, 0.40f, 0.60f, 0.05f, 0x55FFFFFF},
-                    {0.45f, 1.0f, 0.95f, 0.55f, 0x66FF3040}};
-            for (float[] bm : beams) {
-                p.setColor((int) bm[4]);
-                c.drawLine(w * bm[0], h * bm[1], w * bm[2], h * bm[3], p);
+            // brush streaks: bundles of thin diagonal lines, pale on the left, bright red on the right
+            java.util.Random r = new java.util.Random(15);
+            p.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+            float[][] bands = {{0.30f, 0x40FFFFFF}, {0.36f, 0x55FF1A24}, {0.80f, 0x66FF1A24}, {0.86f, 0x33FFFFFF}};
+            for (float[] band : bands) {
+                for (int i = 0; i < 26; ++i) {
+                    float x = w * band[0] + r.nextFloat() * w * 0.07f;
+                    float y0 = h * (0.05f + r.nextFloat() * 0.35f), y1 = h * (0.7f + r.nextFloat() * 0.35f);
+                    p.setStrokeWidth(dp(1) + r.nextFloat() * dp(4));
+                    int a = (int) (((((int) band[1]) >>> 24) & 0xFF) * (0.3f + r.nextFloat() * 0.7f));
+                    p.setColor((a << 24) | (((int) band[1]) & 0xFFFFFF));
+                    c.drawLine(x + (h - y0) * 0.45f, y0, x + (h - y1) * 0.45f, y1, p);
+                }
             }
-            // a dark band behind the tiles
-            p.setShader(new android.graphics.LinearGradient(0, h * 0.45f, 0, h, 0x00000000, 0xAA000000,
-                    android.graphics.Shader.TileMode.CLAMP));
-            c.drawRect(0, h * 0.45f, w, h, p);
+            if (picture != null) {
+                // the picture fills the screen height on the right and fades into the red on its left
+                float s = Math.max(h / picture.getHeight(), w * 0.62f / picture.getWidth());
+                float pw = picture.getWidth() * s, ph = picture.getHeight() * s;
+                android.graphics.RectF dst = new android.graphics.RectF(w - pw, (h - ph) / 2, w, (h + ph) / 2);
+                int layer = c.saveLayer(0, 0, w, h, null);
+                c.drawBitmap(picture, null, dst, p);
+                android.graphics.Paint fade = new android.graphics.Paint();
+                fade.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN));
+                fade.setShader(new android.graphics.LinearGradient(dst.left, 0, dst.left + pw * 0.35f, 0, 0x00000000, 0xFF000000,
+                        android.graphics.Shader.TileMode.CLAMP));
+                c.drawRect(dst, fade);
+                c.restoreToCount(layer);
+            }
+            // dark edges and a dark band under the tiles so the text stays readable
+            p.setShader(new android.graphics.LinearGradient(0, 0, w * 0.45f, 0, 0xCC000000, 0x00000000, android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(b, p);
+            p.setShader(new android.graphics.LinearGradient(0, h * 0.5f, 0, h, 0x00000000, 0xCC000000, android.graphics.Shader.TileMode.CLAMP));
+            c.drawRect(0, h * 0.5f, w, h, p);
             p.setShader(null);
         }
         @Override public void setAlpha(int a) {}
@@ -1089,6 +1201,7 @@ public class LauncherActivity extends Activity {
             case REQ_DRIVER: installDriver(uris.get(0)); break;
             case REQ_PICK_ISO: useGamePath(uris.get(0), false); break;
             case REQ_PICK_FOLDER: useGamePath(uris.get(0), true); break;
+            case REQ_BACKGROUND: setBackgroundPicture(uris.get(0)); break;
         }
     }
 
