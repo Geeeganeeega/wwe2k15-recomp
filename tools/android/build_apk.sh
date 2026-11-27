@@ -41,7 +41,7 @@ jar cf "$OBJ/classes.jar" -C "$OBJ/classes" .
 # 2. Manifest + the app icon -> base APK (the screens themselves are built in code)
 mkdir -p "$OBJ/res"
 "$BUILD_TOOLS/aapt2" compile --dir "$ROOT/android/res" -o "$OBJ/res/res.zip"
-"$BUILD_TOOLS/aapt2" link -R "$OBJ/res/res.zip" --manifest "$ROOT/android/AndroidManifest.xml" -I "$ANDROID_JAR" \
+"$BUILD_TOOLS/aapt2" link "$OBJ/res/res.zip" --manifest "$ROOT/android/AndroidManifest.xml" -I "$ANDROID_JAR" \
   --min-sdk-version "$MIN_API" --target-sdk-version "$TARGET_API" \
   --replace-version --version-code "$VERSION_CODE" --version-name "$VERSION_NAME" -o "$OBJ/base.apk"
 
