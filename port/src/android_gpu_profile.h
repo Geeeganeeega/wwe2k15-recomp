@@ -40,10 +40,8 @@ inline void Apply() {
                   KV{"gpu_wait_reg_mem_spin", "true"}, KV{"vulkan_async_submit", "true"},
                   KV{"vulkan_submit_on_wait", "true"}, KV{"vulkan_deferred_descriptor_writes", "true"},
                   KV{"gpu_type0_bulk_writes", "true"}, KV{"gpu_type0_block_split", "true"},
-                  KV{"gpu_request_ranges_fast", "true"}, KV{"vulkan_constants_dynamic_offsets", "true"},
-                  KV{"vulkan_system_constants_skip", "true"}, KV{"vulkan_viewport_info_cache", "true"},
-                  KV{"vulkan_vertex_residency_cache_off", "true"}, KV{"vulkan_async_swap", "true"},
-                  KV{"gpu_vblank_precise_timer", "true"}})
+                  KV{"gpu_request_ranges_fast", "true"}, KV{"vulkan_constants_dynamic_offsets", "true"}, KV{"vulkan_viewport_info_cache", "true"},
+                  KV{"vulkan_vertex_residency_cache_off", "true"}, KV{"vulkan_async_swap", "true"}})
       set.push_back(kv);
   }
   // Less log writing: the native renderer reports every 60 frames (thousands of lines in a match)

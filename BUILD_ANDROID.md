@@ -5,12 +5,11 @@ borrows from two other ports:
 
 | From | What |
 |---|---|
-| **WWE 2K14 recomp** (Jarrodfeng/wwe2k14-recomp, BSD 3-Clause) | the ReXGlue SDK with its Android support (`patches/rexglue-sdk/full/01-...` up to `73-...`): ARM64 code, Adreno fixes, SDL on Android, custom Vulkan drivers, touch pad, phone frame pacing |
+| **WWE 2K14 recomp** (Jarrodfeng/wwe2k14-recomp, BSD 3-Clause) | the whole ReXGlue SDK: all of Jarrod's patches (`patches/rexglue-sdk/full/001-...` to `119-...`, copied unchanged), with its Android support (ARM64 code, Adreno fixes, SDL on Android, custom Vulkan drivers, phone frame pacing); the game's Android helpers (driver loader, performance hint, missing-function scan) |
 | **WWE '13 Android port** (dzepdzep/wwe13-recomp-android, BSD 3-Clause) | the app: the WWE-style launcher (PLAY, GRAPHICS, GAME, CONTROLS, SAVES, UPDATES pages, here in WWE 2K15 red), install from your disc image, the touch controls made for WWE games and their layout editor, in-app updates |
-| **WWE 2K17 Android port** (the same SDK series + `88-...` to `95-...`) | the Linux / GitHub Actions build, frame generation, screen shapes, Android audio latency fix, GPU profile, frame pacing, driver loading, DLC / title update install |
 | **WWE 2K15 PC** (`port/`) | the game-specific code: TU4 function hints, 60 FPS entrances, the Create-a-Championship freeze fix (#33), crash guards, text / keyboard hooks, mods folder, ISO + title update loading |
 
-`patches/rexglue-sdk/full/96-wwe2k15-port.diff` holds the WWE 2K15 PC port's SDK patches that the game needs on top
+`patches/rexglue-sdk/full/200-wwe2k15-port.diff` (applied last) holds the WWE 2K15 PC port's SDK patches that the game needs on top
 of that: the WWE 2K15 memory range, the VFS overlay (mods / title update), the kernel object type check (#24) and the
 smaller ones that apply as they are. The PC port's own SDK patches stay in `port/patches/` for the Windows build.
 
@@ -62,12 +61,9 @@ The first run builds the SDK (long, cached afterwards). The APK lands on the **d
 ## "Call to invalid or unregistered function" / "No function registered at ..."
 
 The game reached code that codegen did not see (code called only through pointers in the game's data). Every start
-logs those pointers as `[wwe2k15][scan] ...` lines.
-
-    GEN=port/generated/default python3 tools/analysis/scan_hints.py <log> port/hints_scan_001.toml --lone
-
-Add the new file to `includes = [...]` in `port/wwe2k15_manifest.example.toml`, run codegen again, push the
-`generated` branch, run the workflow.
+logs those pointers as `[wwe2k15][scan] ...` lines (Jarrod's missing-function scan). Send the log: the missing
+functions go into the function hints (`port/wwe2k15_config.toml`), then codegen runs again
+(`tools/codegen/phone_all.sh` does it all).
 
 ## Local build (Linux with the Android SDK / NDK)
 

@@ -260,8 +260,6 @@ public class LauncherActivity extends Activity {
         settings.addView(button("Add GPU driver (.zip)…", v -> pick(REQ_DRIVER, false)), wrap(dp(4)));
         settings.addView(checkbox("Sharper upscaling (SGSR)", prefs.getBoolean("upscaler", false),
                 c -> prefs.edit().putBoolean("upscaler", c).apply()));
-        settings.addView(checkbox("Frame generation (30 → 60 FPS look, a little more input delay)", prefs.getBoolean("framegen", false),
-                c -> prefs.edit().putBoolean("framegen", c).apply()));
         settings.addView(checkbox("Stretch the picture to fill the screen", prefs.getBoolean("stretch", false),
                 c -> prefs.edit().putBoolean("stretch", c).apply()));
         settings.addView(checkbox("Show an FPS counter in the game", prefs.getBoolean("show_fps", false),
@@ -521,7 +519,6 @@ public class LauncherActivity extends Activity {
             a.add("--wwe2k15_fps_limit=" + (fps == 2 ? 30 : 0));
             a.add("--wwe2k15_gpu_profile=" + (prefs.getInt("gpu_profile", 0) == 1 ? 2 : 1));
             if (prefs.getBoolean("upscaler", false)) a.add("--present_effect=sgsr");
-            a.add("--framegen=" + prefs.getBoolean("framegen", false));
             a.add("--present_letterbox=" + !prefs.getBoolean("stretch", false));
             a.add("--wwe2k15_show_fps=" + prefs.getBoolean("show_fps", false));
             a.add("--wwe2k15_big_cores=" + prefs.getBoolean("big_cores", true));
