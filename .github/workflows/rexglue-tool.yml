@@ -48,7 +48,7 @@ jobs:
       - name: Package (the tool + the SDK libraries it loads, and the patch set it was built from)
         run: |
           set -euo pipefail
-          TOOL="$(find out/host/sdk-build -type f -name rexglue -perm -u+x | head -1)"
+          TOOL="$(find out/host/rexglue-sdk-src/out out/host/sdk-build -type f -name rexglue -perm -u+x 2>/dev/null | head -1)"
           PKG=out/rexglue-linux-arm64
           mkdir -p "$PKG/lib"
           cp "$TOOL" "$PKG/rexglue.bin"

@@ -63,12 +63,12 @@ if [ "${1:-}" = "--ubuntu-part" ]; then
     apt-get update -q && apt-get install -y -q git cmake ninja-build clang pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libx11-xcb-dev libxcb1-dev libwayland-dev libwayland-bin wayland-protocols libdecor-0-dev libegl-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libpipewire-0.3-dev libdbus-1-dev libudev-dev
     git config --global --add safe.directory '*'
     STAMP="$HERE/out/host/sdk-patches.sha"
-    REXGLUE="$(find "$HERE/out/host/sdk-build" -type f -name rexglue -perm -u+x 2>/dev/null | head -1 || true)"
+    REXGLUE="$(find "$HERE/out/host/rexglue-sdk-src/out" "$HERE/out/host/sdk-build" -type f -name rexglue -perm -u+x 2>/dev/null | head -1 || true)"
     if [ -z "$REXGLUE" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$WANT" ]; then
       rm -rf "$HERE/out/host/sdk-build"
       CC=clang CXX=clang++ "$HERE/tools/codegen/build_rexglue.sh"
       echo "$WANT" > "$STAMP"
-      REXGLUE="$(find "$HERE/out/host/sdk-build" -type f -name rexglue -perm -u+x | head -1)"
+      REXGLUE="$(find "$HERE/out/host/rexglue-sdk-src/out" "$HERE/out/host/sdk-build" -type f -name rexglue -perm -u+x | head -1)"
     fi
   fi
   echo "recompiler: $REXGLUE"

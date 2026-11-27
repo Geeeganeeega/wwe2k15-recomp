@@ -12,7 +12,7 @@ GAME="${1:?usage: run_codegen.sh /path/to/game_folder [title_update_package]}"
 GAME="$(cd "$GAME" && pwd)"
 TU_PKG="${2:-${TU:-}}"
 [ -f "$GAME/default.xex" ] || { echo "no default.xex in $GAME" >&2; exit 2; }
-TOOL="${REXGLUE:-$(find "$ROOT/out/host/sdk-build" -type f -name rexglue -perm -u+x 2>/dev/null | head -1)}"
+TOOL="${REXGLUE:-$(find "$ROOT/out/host/rexglue-sdk-src/out" "$ROOT/out/host/sdk-build" -type f -name rexglue -perm -u+x 2>/dev/null | head -1)}"
 [ -n "$TOOL" ] || { echo "run tools/codegen/build_rexglue.sh first (or set REXGLUE=/path/to/rexglue)" >&2; exit 2; }
 
 XEX="$GAME/default.xex"

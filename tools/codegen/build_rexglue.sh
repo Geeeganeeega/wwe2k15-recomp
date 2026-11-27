@@ -42,6 +42,7 @@ git -C "$SRC" submodule update --init --recursive --depth 1
 cmake -S "$SRC" -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DREXGLUE_ENABLE_TRACY=OFF -DREXGLUE_ENABLE_FIDELITYFX=OFF -DREXGLUE_BUILD_TESTS=OFF
 cmake --build "$BUILD" --target rexglue -j "$JOBS"
-TOOL="$(find "$BUILD" -type f -name rexglue -perm -u+x | head -1)"
+# the SDK writes its programs to <source>/out/<platform>/ (not into the build folder)
+TOOL="$(find "$SRC/out" "$BUILD" -type f -name rexglue -perm -u+x 2>/dev/null | head -1)"
 [ -n "$TOOL" ] || { echo "rexglue was not built" >&2; exit 1; }
 echo "built: $TOOL"
