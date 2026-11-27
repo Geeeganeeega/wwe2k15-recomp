@@ -55,6 +55,20 @@ inline void OnPresent() {
     last = now;
   }
   wwe2k15::perf::LimitFrame(game_fps);
+  {  // every 5 s: what the frame rate is and why ("[wwe2k15][fps]" in the log, for FPS reports)
+    static auto t0 = std::chrono::steady_clock::now();
+    static uint64_t n0 = n;
+    const auto now = std::chrono::steady_clock::now();
+    const double secs = std::chrono::duration<double>(now - t0).count();
+    if (secs >= 5.0) {
+      REXLOG_INFO("[wwe2k15][fps] {:.1f} fps | game mode {} | real-speed 30 {} | pacing cap {} | frame work p50 {:.1f} ms p90 {:.1f} ms",
+                  double(n - n0) / secs, game_fps, Wwe2k15StepEffectiveRate() ? "ON" : "off",
+                  wwe2k15::perf::g_even_rate.load(std::memory_order_relaxed),
+                  wwe2k15::perf::g_work_p50_ms.load(std::memory_order_relaxed),
+                  wwe2k15::perf::g_work_p90_ms.load(std::memory_order_relaxed));
+      t0 = now, n0 = n;
+    }
+  }
 }
 
 }  // namespace wwe2k15::android_frame

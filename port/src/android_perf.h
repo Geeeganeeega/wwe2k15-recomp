@@ -10,6 +10,7 @@
 #include "thread_stats.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <map>
 #include <unistd.h>
@@ -26,6 +27,10 @@ REXCVAR_DEFINE_BOOL(wwe2k15_big_cores, true, "wwe2k15", "Android: keep the game'
 REXCVAR_DEFINE_INT32(wwe2k15_fps_limit, 0, "wwe2k15", "Frame limit: 0 = the game's own pace, 30 or 60");
 
 namespace wwe2k15::perf {
+
+// What LimitFrame decided, for the "[wwe2k15][fps]" log line (android_frame.h).
+inline std::atomic<int> g_even_rate{60};
+inline std::atomic<float> g_work_p50_ms{0}, g_work_p90_ms{0};
 
 // Called on the thread that later creates the game's threads (they inherit its CPU mask).
 inline void PlaceOnBigCores() {
@@ -195,19 +200,26 @@ inline void LimitFrame(uint32_t game_fps = 60) {
       std::vector<double> sorted = work;
       std::sort(sorted.begin(), sorted.end());
       const double p90 = sorted[sorted.size() * 9 / 10];
+      const double p50 = sorted[sorted.size() / 2];
+      g_work_p50_ms.store(float(p50 * 1000), std::memory_order_relaxed);
+      g_work_p90_ms.store(float(p90 * 1000), std::memory_order_relaxed);
       const double hz = std::max(30, REXCVAR_GET(wwe2k15_display_hz));
       double best = 20;
       for (int n = 1; n <= 8; ++n) {
         const double rate = hz / n;
         if (rate > 60.5 || rate < 20) continue;
-        if (1.0 / rate >= p90 * 1.04) { best = rate; break; }  // the highest even rate the frames fit into
+        // the highest even rate most frames fit into: the median with 10 % slack, and 90 % of frames within 1.4x
+        // (single slow frames, a loading hitch, no longer pull 60 down to 40)
+        if (1.0 / rate >= p50 * 1.10 && 1.0 / rate * 1.4 >= p90) { best = rate; break; }
       }
       if (best < target) { target = best; up_votes = 0; }
+      else if (best > target && target < 60 && ++up_votes >= 2) { target = best; up_votes = 0; }
       else if (best > target && ++up_votes >= 4) { target = best; up_votes = 0; }
       else if (best <= target) up_votes = 0;
     }
   }
   double rate = std::min<double>(limit, target);
+  g_even_rate.store(int(rate + 0.5), std::memory_order_relaxed);
   if (game_fps == 30 || user == 30) rate = 30;
   const auto period = std::chrono::nanoseconds(static_cast<long long>(1e9 / rate));
   waited = 0;
