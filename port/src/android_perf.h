@@ -25,14 +25,14 @@
 
 REXCVAR_DEFINE_BOOL(wwe2k15_big_cores, true, "wwe2k15", "Android: keep the game's threads on the faster CPU cores");
 REXCVAR_DEFINE_INT32(wwe2k15_fps_limit, 0, "wwe2k15", "Frame limit: 0 = the game's own pace, 30 or 60");
+// 0 = smooth (the even-rate cap below), 1 = as fast as possible (only the 60 limit): more frames, uneven timing.
+REXCVAR_DEFINE_INT32(wwe2k15_pacing, 0, "wwe2k15", "Frame pacing: 0 smooth (even rates: 60 / 40 / 30), 1 as fast as possible");
 
 namespace wwe2k15::perf {
 
 // Thermal guard: while the phone's thermal headroom (Android's forecast: 1.0 = throttling) stays high, frames are held
 // to 30 per second; back to normal once it has cooled. Read once a second (the system wants at most one call a second).
 inline std::atomic<bool> g_thermal_cap{false};
-// 0 = smooth (the even-rate cap below), 1 = as fast as possible (only the 60 limit): more frames, uneven timing.
-REXCVAR_DEFINE_INT32(wwe2k15_pacing, 0, "wwe2k15", "Frame pacing: 0 smooth (even rates: 60 / 40 / 30), 1 as fast as possible");
 inline std::atomic<float> g_thermal_headroom{-1.f};
 
 // What LimitFrame decided, for the "[wwe2k15][fps]" log line (android_frame.h).
