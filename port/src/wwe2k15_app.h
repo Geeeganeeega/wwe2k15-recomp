@@ -244,7 +244,7 @@ class Wwe2k15App : public rex::ReXApp {
     const std::filesystem::path wrong(v);  // what the SDK built (ANSI decoding of the UTF-8 bytes)
     if (p != wrong) return;                // not taken from the cvar: leave it
     p = std::filesystem::u8path(v);
-    REXLOG_INFO("{}: path rebuilt from its UTF-8 text ({})", cvar_name, p.u8string());
+    REXLOG_INFO("{}: path rebuilt from its UTF-8 text ({})", cvar_name, v);
   }
 
   // The folder for the port's own files (mods, cache, game_update). The PC port keeps them beside the exe. On Android

@@ -82,6 +82,13 @@ endif()
 rexglue_setup_target(wwe2k15 GPU_PLUGINS xenos)
 
 if(ANDROID)
+    # The PC build's /Zc:char8_t- (CMakePresets.json) and the SDK's own -fno-char8_t / -fno-strict-aliasing (its
+    # CMakeLists.txt, which apply only inside the SDK): the same rules for the game's code and the recompiled code.
+    foreach(_wwe2k15_t wwe2k15 wwe2k15_recomp)
+        if(TARGET ${_wwe2k15_t})
+            target_compile_options(${_wwe2k15_t} PRIVATE -fno-char8_t -fno-strict-aliasing)
+        endif()
+    endforeach()
     target_link_libraries(wwe2k15 PRIVATE android log)
     # Custom Vulkan drivers (src/android_driver.h): libadrenotools (BSD-2-Clause) is fetched into thirdparty/ by the
     # build (git clone --recursive https://github.com/bylaws/libadrenotools port/thirdparty/libadrenotools); its hook
