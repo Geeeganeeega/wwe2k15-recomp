@@ -357,12 +357,13 @@ public class HomeActivity extends Activity {
 
     private File imagesDir() { return new File(getFilesDir(), "launcher_images"); }
 
-    /** images/<name> for the page, from the phone (bg_home.jpg = the background picture of GAME > Look). */
+    /** images/<name> for the page: a picture chosen on the phone wins (bg_home.jpg = the background of GAME > Look),
+     *  else the file in the app's own assets/launcher/images (a personal build may carry them). */
     private WebResourceResponse picture(String name) {
         try {
             if (!name.matches("[A-Za-z0-9_]+\\.(jpg|jpeg|png|webp)")) return notFound();
             File f = name.equals("bg_home.jpg") ? new File(getFilesDir(), "launcher_background") : new File(imagesDir(), name);
-            if (!f.isFile()) return notFound();
+            if (!f.isFile()) return null;  // no picture of the player's own: the app's assets/launcher/images, if any
             return new WebResourceResponse("image/jpeg", null, new FileInputStream(f));
         } catch (IOException e) {
             return notFound();
