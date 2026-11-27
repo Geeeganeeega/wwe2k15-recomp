@@ -53,6 +53,7 @@ public class LauncherActivity extends Activity {
     private static final int REQ_PICK_ISO = 9;
     private static final int REQ_PICK_FOLDER = 10;
     private static final int REQ_BACKGROUND = 11;
+    private static final int REQ_SPLASH = 12;
 
     // Resolution: the draw height on the phone (the SDK draws at 720p x resolution_scale, or lower with
     // gpu_native_truth_draw_height), as in the WWE 2K17 port.
@@ -103,6 +104,87 @@ public class LauncherActivity extends Activity {
             return;
         }
         buildUi();
+        if (savedInstanceState == null) showSplash();
+    }
+
+    // ------------------------------------------------------------------------------------------ start-up screen
+
+    private File splashFile() { return new File(getFilesDir(), "launcher_splash"); }
+
+    /**
+     * The start-up screen, for 3 seconds over the home screen: the player's own picture (GAME > Look) or the drawn one
+     * (blood red, WWE 2K15, made by Shadow Xavier), with a blinking TAP TO PLAY in the middle. A tap closes it early.
+     */
+    private void showSplash() {
+        final FrameLayout content = findViewById(android.R.id.content);
+        if (content == null) return;
+        final FrameLayout splash = new FrameLayout(this);
+        splash.setClickable(true);
+        splash.setFocusable(true);
+        HomeBackground bg = new HomeBackground();
+        bg.dimBottom = false;
+        splash.setBackground(bg);
+        android.graphics.Bitmap own = loadPicture(splashFile());
+        if (own != null) {
+            android.widget.ImageView iv = new android.widget.ImageView(this);
+            iv.setImageBitmap(own);
+            iv.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            splash.addView(iv, new FrameLayout.LayoutParams(-1, -1));
+        } else {
+            LinearLayout logo = new LinearLayout(this);
+            logo.setOrientation(LinearLayout.VERTICAL);
+            logo.setGravity(Gravity.CENTER_HORIZONTAL);
+            TextView big = gradientText("WWE 2K15", 72, new int[] {0xFFFFFFFF, 0xFFFFD0D0, 0xFFFF2A2A, 0xFF8A0008});
+            big.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
+            big.setShadowLayer(dp(18), 0, dp(2), 0xEE000000);
+            logo.addView(big);
+            TextView by = text("MADE BY SHADOW XAVIER", 14, 0xFFFFE6E6);
+            by.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
+            by.setLetterSpacing(0.25f);
+            by.setShadowLayer(dp(4), 0, 0, 0xFF000000);
+            logo.addView(by);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM);
+            lp.bottomMargin = dp(40);
+            splash.addView(logo, lp);
+        }
+        TextView tap = text("TAP TO PLAY", 30, Color.WHITE);
+        tap.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
+        tap.setLetterSpacing(0.12f);
+        tap.setShadowLayer(dp(10), 0, 0, 0xFFE3141C);
+        tap.setGravity(Gravity.CENTER);
+        tap.setPadding(dp(28), dp(6), dp(28), dp(6));
+        tap.setBackgroundColor(0x99000000);
+        splash.addView(tap, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+        android.view.animation.AlphaAnimation blink = new android.view.animation.AlphaAnimation(1f, 0.25f);
+        blink.setDuration(600);
+        blink.setRepeatMode(android.view.animation.Animation.REVERSE);
+        blink.setRepeatCount(android.view.animation.Animation.INFINITE);
+        tap.startAnimation(blink);
+        content.addView(splash, new FrameLayout.LayoutParams(-1, -1));
+        final Runnable close = () -> {
+            if (splash.getParent() == null || splash.getTag() != null) return;
+            splash.setTag("closing");
+            splash.animate().alpha(0f).setDuration(250).withEndAction(() -> {
+                tap.clearAnimation();
+                content.removeView(splash);
+                showHome();
+            }).start();
+        };
+        splash.setOnClickListener(v -> close.run());
+        splash.setOnKeyListener((v, code, e) -> {
+            if (e.getAction() == android.view.KeyEvent.ACTION_UP) close.run();
+            return true;
+        });
+        splash.requestFocus();
+        handler.postDelayed(close, 3000);
+    }
+
+    private void setPictureFile(Uri uri, File dest) throws Exception {
+        try (InputStream in = getContentResolver().openInputStream(uri); java.io.FileOutputStream out = new java.io.FileOutputStream(dest)) {
+            byte[] b = new byte[65536];
+            int n;
+            while ((n = in.read(b)) > 0) out.write(b, 0, n);
+        }
     }
 
     // "Start the game directly": a short screen first, where any button or a tap opens the settings instead.
@@ -373,6 +455,17 @@ public class LauncherActivity extends Activity {
             }
         }));
         look.addView(lookButtons);
+        look.addView(text("Start-up picture: shown for 3 seconds with TAP TO PLAY when the app opens (stays on this phone only).", 13, DIM));
+        LinearLayout splashButtons = row();
+        splashButtons.addView(button("Choose start-up picture…", v -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("image/*");
+            startActivityForResult(i, REQ_SPLASH);
+        }));
+        splashButtons.addView(button("Preview", v -> showSplash()));
+        splashButtons.addView(button("Remove", v -> splashFile().delete()));
+        look.addView(splashButtons);
         settings = section(page, "Game");
         settings.addView(checkbox("Run the game on the phone's fast CPU cores (recommended)", prefs.getBoolean("big_cores", true),
                 c -> prefs.edit().putBoolean("big_cores", c).apply()));
@@ -503,8 +596,9 @@ public class LauncherActivity extends Activity {
     private File backgroundFile() { return new File(getFilesDir(), "launcher_background"); }
 
     /** The player's own background picture, if one was chosen (GAME > Look), scaled down to the screen. */
-    private android.graphics.Bitmap loadBackgroundPicture() {
-        File f = backgroundFile();
+    private android.graphics.Bitmap loadBackgroundPicture() { return loadPicture(backgroundFile()); }
+
+    private android.graphics.Bitmap loadPicture(File f) {
         if (!f.isFile()) return null;
         try {
             android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
@@ -522,11 +616,8 @@ public class LauncherActivity extends Activity {
     }
 
     private void setBackgroundPicture(Uri uri) {
-        try (InputStream in = getContentResolver().openInputStream(uri);
-             java.io.FileOutputStream out = new java.io.FileOutputStream(backgroundFile())) {
-            byte[] b = new byte[65536];
-            int n;
-            while ((n = in.read(b)) > 0) out.write(b, 0, n);
+        try {
+            setPictureFile(uri, backgroundFile());
         } catch (Exception e) {
             toastDialog("Could not read that picture: " + e.getMessage());
             return;
@@ -711,6 +802,7 @@ public class LauncherActivity extends Activity {
     /** The home background: blood red with dark edges and white / red brush streaks; the player's picture on the right. */
     private final class HomeBackground extends android.graphics.drawable.Drawable {
         android.graphics.Bitmap picture;
+        boolean dimBottom = true;
         final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG | android.graphics.Paint.FILTER_BITMAP_FLAG);
         @Override public void draw(android.graphics.Canvas c) {
             android.graphics.Rect b = getBounds();
@@ -751,8 +843,10 @@ public class LauncherActivity extends Activity {
             // dark edges and a dark band under the tiles so the text stays readable
             p.setShader(new android.graphics.LinearGradient(0, 0, w * 0.45f, 0, 0xCC000000, 0x00000000, android.graphics.Shader.TileMode.CLAMP));
             c.drawRect(b, p);
-            p.setShader(new android.graphics.LinearGradient(0, h * 0.5f, 0, h, 0x00000000, 0xCC000000, android.graphics.Shader.TileMode.CLAMP));
-            c.drawRect(0, h * 0.5f, w, h, p);
+            if (dimBottom) {
+                p.setShader(new android.graphics.LinearGradient(0, h * 0.5f, 0, h, 0x00000000, 0xCC000000, android.graphics.Shader.TileMode.CLAMP));
+                c.drawRect(0, h * 0.5f, w, h, p);
+            }
             p.setShader(null);
         }
         @Override public void setAlpha(int a) {}
@@ -1202,6 +1296,14 @@ public class LauncherActivity extends Activity {
             case REQ_PICK_ISO: useGamePath(uris.get(0), false); break;
             case REQ_PICK_FOLDER: useGamePath(uris.get(0), true); break;
             case REQ_BACKGROUND: setBackgroundPicture(uris.get(0)); break;
+            case REQ_SPLASH:
+                try {
+                    setPictureFile(uris.get(0), splashFile());
+                    showSplash();
+                } catch (Exception e) {
+                    toastDialog("Could not read that picture: " + e.getMessage());
+                }
+                break;
         }
     }
 
