@@ -191,7 +191,7 @@ public class LauncherActivity extends Activity {
         // -- HOME
         homeView = new LinearLayout(this);
         homeView.setOrientation(LinearLayout.VERTICAL);
-        TextView title = text("WWE 2K15", 54, TEXT);
+        TextView title = text("WWE 2K15", 44, TEXT);
         title.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD_ITALIC));
         title.setShadowLayer(dp(14), 0, 0, 0xCCE3141C);
         title.setLetterSpacing(0.02f);
@@ -218,13 +218,17 @@ public class LauncherActivity extends Activity {
                 {"CONTROLS", "CONTROLS", "\u271C"}, {"GAME", "GAME", "\u2605"}, {"SAVES", "SAVES", "\u21BB"},
                 {"LOGS", "LOGS", "\u2630"}, {"UPDATES", "UPDATES", "\u2B07"}};
         firstTile = null;
+        // Two rows of tiles must fit under the title on a phone held sideways (about 390 dp high): size them to the screen.
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        int screenDp = (int) (Math.min(dm.heightPixels, dm.widthPixels) / dm.density);
+        int tileH = Math.max(64, Math.min(108, (screenDp - 240) / 2));
         for (String[] t : tiles) {
             final String page = t[1];
             View tile = t[0].equals("PLAY") ? tile(t[0], t[2], v -> { if (gameReady()) startGame(); else showTab("PLAY"); })
                     : tile(t[0], t[2], v -> showTab(page));
             android.widget.GridLayout.LayoutParams lp = new android.widget.GridLayout.LayoutParams();
-            lp.width = dp(230);
-            lp.height = dp(108);
+            lp.width = dp(tileH * 230 / 108);
+            lp.height = dp(tileH);
             lp.setMargins(0, 0, dp(12), dp(12));
             grid.addView(tile, lp);
             if (firstTile == null) firstTile = tile;
