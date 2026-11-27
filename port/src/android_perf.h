@@ -37,6 +37,7 @@ inline std::atomic<float> g_thermal_headroom{-1.f};
 
 // What LimitFrame decided, for the "[wwe2k15][fps]" log line (android_frame.h).
 inline std::atomic<int> g_even_rate{60};
+inline std::atomic<float> g_last_work_ms{-1.f};  // the last frame's own work (dynamic_res.h)
 inline std::atomic<float> g_work_p50_ms{0}, g_work_p90_ms{0};
 
 // Called on the thread that later creates the game's threads (they inherit its CPU mask).
@@ -200,6 +201,7 @@ inline void LimitFrame(uint32_t game_fps = 60) {
   const double interval = std::chrono::duration<double>(now - last_entry).count();
   last_entry = now;
   const double own = std::max(0.0, interval - waited);
+  g_last_work_ms.store(float(own * 1000.0), std::memory_order_relaxed);
   if (own < 0.5) {  // (a pause of half a second or more is a loading screen, not a frame)
     work.push_back(own);
     if (work.size() > 90) work.erase(work.begin());
