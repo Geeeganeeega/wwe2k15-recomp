@@ -6,6 +6,16 @@
 #   tools/codegen/build_rexglue.sh        -> out/host/sdk-build/.../rexglue
 # Needs: git, cmake, ninja, clang (or gcc 13+), python3.   apt install git cmake ninja-build clang python3
 set -euo pipefail
+if [ "$(uname -o 2>/dev/null)" = "Android" ] || [ -n "${TERMUX_VERSION:-}" ]; then
+  cat >&2 <<'MSG'
+This is plain Termux: its compiler builds for Android, and the recompiler must be a normal Linux program.
+Run it inside Termux's Ubuntu instead:
+    pkg install proot-distro && proot-distro install ubuntu && proot-distro login ubuntu
+    apt update && apt install -y git cmake ninja-build clang python3
+    cd /data/data/com.termux/files/home/wwe2k15-android && tools/codegen/build_rexglue.sh
+MSG
+  exit 2
+fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SDK_COMMIT="$(sed -n 's/^SDK_COMMIT="\(.*\)"/\1/p' "$ROOT/tools/android/env.sh")"
 WORK="${WORK:-$ROOT/out/host}"
