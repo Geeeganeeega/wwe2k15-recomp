@@ -196,7 +196,7 @@ public class HomeActivity extends Activity {
     }
 
     /** Added at run time (index.html itself is not changed): tiles whose picture is missing show red art instead of a
-     *  broken-picture icon, and a DLC button next to HOME (Y on a controller). */
+     *  broken-picture icon, a DLC button next to HOME (Y on a controller), and one tap opens any tile. */
     private void addExtras() {
         if (web == null) return;
         web.evaluateJavascript("(function(){if(document.getElementById('xx-extra'))return;"
@@ -216,6 +216,10 @@ public class HomeActivity extends Activity {
                 + "var b=document.createElement('button');b.className='xx-dlc';b.innerHTML='<span>DLC<b>Y</b></span>';"
                 + "b.onclick=function(){if(window.Android&&Android.openSection)Android.openSection('dlc');};"
                 + "document.getElementById('s').appendChild(b);"
+                // One tap opens a tile (the page's own handler opens only the tile that is already selected, so a
+                // first tap on another tile just moved the selection): select it first, in the capture phase.
+                + "document.querySelectorAll('.tile').forEach(function(t,k){t.addEventListener('click',function(){"
+                + "if(typeof select==='function')select(k);},true);});"
                 + "})()", null);
     }
 
