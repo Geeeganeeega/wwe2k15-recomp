@@ -58,6 +58,10 @@ inline const std::vector<KV>& NativeFlags() {
       KV{"gpu_native_vs_mul_fetch_finite", "true"}, KV{"gpu_native_ps_epilogue_spec", "true"},
       KV{"gpu_native_truth_skip_restores", "true"}, KV{"gpu_native_truth_skip_repeat_resolves", "true"},
       KV{"gpu_native_truth_fill_rename_check", "true"},
+      // From the WWE 2K16 recomp's NATIVE list (src/native_renderer.cpp): submission and waiting settings of the SDK.
+      KV{"vulkan_async_submit", "true"}, KV{"vulkan_submit_on_wait", "true"},
+      KV{"vulkan_deferred_descriptor_writes", "true"}, KV{"gpu_wait_reg_mem_spin", "true"},
+      KV{"vulkan_disk_pipeline_cache", "true"}, KV{"vulkan_vertex_residency_cache_off", "true"},
   };
   return f;
 }

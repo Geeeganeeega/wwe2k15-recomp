@@ -1,0 +1,3 @@
+patches/rexglue-sdk/full/211-frame-generation.diff and 212-frame-generation-pacing.diff, and the six SDK settings marked
+in port/src/android_gpu_profile.h, come from the WWE 2K16 recomp by Banshee (itsbybanshee/wwe2k16-pc, fork
+Savanindurkar7/wwe2k16-pc). Its README: "Project discontinued ... If you want to fork it, I allow you."
