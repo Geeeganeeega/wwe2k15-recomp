@@ -16,14 +16,15 @@ REPO="${REPO:-Geeeganeeega/wwe2k15-android}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 : "${GAME:?set GAME=/path/to/your WWE 2K15 folder (default.xex + default.xexp)}"
 : "${TOKEN:?set TOKEN=your GitHub token}"
+case "$TOKEN" in *yourtoken*|"") echo "Put your real GitHub token in TOKEN=\"...\" (not ghp_yourtoken)." >&2; exit 2;; esac
 
 say() { printf '\n\033[1;31m==> %s\033[0m\n' "$*"; }
 
 # ---- plain Termux: re-run this script inside Termux's Ubuntu (the recompiler must be a normal Linux program)
 if [ "$(uname -o 2>/dev/null)" = "Android" ] || [ -n "${TERMUX_VERSION:-}" ]; then
   command -v proot-distro >/dev/null || { say "Installing proot-distro"; pkg install -y proot-distro; }
-  proot-distro list 2>/dev/null | grep -q "ubuntu.*installed\|Installed.*ubuntu" || \
-    [ -d "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu" ] || { say "Installing Ubuntu"; proot-distro install ubuntu; }
+  # Ubuntu present? (try to enter it; the "list" output differs between proot-distro versions)
+  proot-distro login ubuntu -- true >/dev/null 2>&1 || { say "Installing Ubuntu"; proot-distro install ubuntu; }
   say "Entering Ubuntu"
   exec proot-distro login ubuntu --shared-tmp -- env GAME="$GAME" TOKEN="$TOKEN" REPO="$REPO" REBUILD="${REBUILD:-}" \
     bash "$HERE/tools/codegen/phone_all.sh"
