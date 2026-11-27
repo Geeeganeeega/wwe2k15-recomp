@@ -38,7 +38,11 @@ echo "applied $(ls "$ROOT"/patches/rexglue-sdk/full/*.diff | wc -l) patches on $
 git -C "$SRC" submodule update --init --recursive --depth 1
 
 cmake -S "$SRC" -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DREXGLUE_ENABLE_TRACY=OFF -DREXGLUE_ENABLE_FIDELITYFX=OFF -DREXGLUE_BUILD_TESTS=OFF
+  -DREXGLUE_ENABLE_TRACY=OFF -DREXGLUE_ENABLE_FIDELITYFX=OFF -DREXGLUE_BUILD_TESTS=OFF \
+  -DSDL_UNIX_CONSOLE_BUILD=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_KMSDRM=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF \
+  -DSDL_ALSA=OFF -DSDL_PULSEAUDIO=OFF -DSDL_PIPEWIRE=OFF -DSDL_JACK=OFF -DSDL_SNDIO=OFF -DSDL_HIDAPI_LIBUSB=OFF
+# (the recompiler never opens a window or plays sound: SDL is built without desktop video / audio backends, so no
+# X11 / Wayland / ALSA development packages are needed)
 cmake --build "$BUILD" --target rexglue -j "$JOBS"
 TOOL="$(find "$BUILD" -type f -name rexglue -perm -u+x | head -1)"
 [ -n "$TOOL" ] || { echo "rexglue was not built" >&2; exit 1; }
