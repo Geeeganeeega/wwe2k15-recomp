@@ -1,0 +1,28 @@
+WWE 2K15 Android: the texture fetch constant "invalid type" warning is logged 20 times, then once in 10000 (it came hundreds of times a second in matches, on the GPU command thread).
+
+diff --git a/src/graphics/pipeline/texture/cache.cpp b/src/graphics/pipeline/texture/cache.cpp
+index 0709fc3..630b968 100644
+--- a/src/graphics/pipeline/texture/cache.cpp
++++ b/src/graphics/pipeline/texture/cache.cpp
+@@ -9,6 +9,7 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include <atomic>
+ #include <algorithm>
+ #include <cstdint>
+ #include <cstdlib>
+@@ -1733,6 +1734,13 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetc
+       if (REXCVAR_GET(gpu_allow_invalid_fetch_constants)) {
+         break;
+       }
++      {
++        // wwe2k15 Android: some games hit this hundreds of times a second (WWE 2K15 in matches); writing every one to
++        // the log costs the GPU command thread real time. The first 20, then one in 10000.
++        static std::atomic<uint64_t> invalid_count{0};
++        const uint64_t n = invalid_count.fetch_add(1, std::memory_order_relaxed);
++        if (n >= 20 && n % 10000 != 0) return;
++      }
+       REXGPU_WARN(
+           "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
+           "has \"invalid\" type! This is incorrect behavior, but you can try "
