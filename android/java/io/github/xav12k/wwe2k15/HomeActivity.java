@@ -92,6 +92,23 @@ public class HomeActivity extends Activity {
         ws.setDisplayZoomControls(false);
         ws.setCacheMode(WebSettings.LOAD_NO_CACHE);
         ws.setMediaPlaybackRequiresUserGesture(true);
+        // The page scales its 1088x540 design to the screen itself: no WebView zoom, no font-size zoom from the
+        // phone's settings, one CSS pixel per dp.
+        ws.setTextZoom(100);
+        ws.setUseWideViewPort(true);
+        ws.setLoadWithOverviewMode(false);
+        web.setInitialScale(0);
+        web.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(android.webkit.ConsoleMessage m) {
+                Log.i(TAG, "[home] " + m.message());
+                return true;
+            }
+        });
+        // Fit again whenever the view's size changes (rotation, cut-out, immersive bars hiding).
+        web.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (r - l != or - ol || b - t != ob - ot) handler.postDelayed(this::refit, 50);
+        });
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         web.setVerticalScrollBarEnabled(false);
         web.setHorizontalScrollBarEnabled(false);
@@ -115,6 +132,10 @@ public class HomeActivity extends Activity {
             @Override
             public void onPageFinished(WebView v, String url) {
                 pushInfo();
+                addExtras();
+                refit();
+                handler.postDelayed(HomeActivity.this::refit, 400);
+                handler.postDelayed(HomeActivity.this::refit, 1500);
             }
         });
         web.addJavascriptInterface(new Bridge(), "Android");
@@ -162,6 +183,42 @@ public class HomeActivity extends Activity {
                 | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
     }
 
+    /** The design's own fit(), from the WebView's real size: the whole 1088x540 page on screen, centred. */
+    private void refit() {
+        if (web == null || web.getWidth() == 0) return;
+        float d = getResources().getDisplayMetrics().density;
+        float w = web.getWidth() / d, h = web.getHeight() / d;
+        web.evaluateJavascript("(function(){var s=document.getElementById('s');if(!s)return;"
+                + "var W=" + w + ",H=" + h + ",k=Math.min(W/1088,H/540);"
+                + "s.style.transform='translate(-50%,-50%) scale('+k+')';"
+                + "if(!window._fitLogged){window._fitLogged=1;console.log('fit '+W+'x'+H+' inner '+innerWidth+'x'+innerHeight+' dpr '+devicePixelRatio+' scale '+k);}"
+                + "})()", null);
+    }
+
+    /** Added at run time (index.html itself is not changed): tiles whose picture is missing show red art instead of a
+     *  broken-picture icon, and a DLC button next to HOME (Y on a controller). */
+    private void addExtras() {
+        if (web == null) return;
+        web.evaluateJavascript("(function(){if(document.getElementById('xx-extra'))return;"
+                + "var st=document.createElement('style');st.id='xx-extra';st.textContent="
+                + "'.tile.xx-noimg{background:linear-gradient(135deg,#8a0012 0%,#3a0006 55%,#140002 100%)!important}"
+                + ".tile.xx-noimg svg{width:44px!important;height:44px!important;right:22px!important;top:16px!important;opacity:.45!important}"
+                + ".xx-dlc{position:absolute;left:250px;top:180px;height:30px;padding:0 18px 0 16px;border:0;"
+                + "background:linear-gradient(90deg,#F0162F 0%,#B0081C 70%,#7A0412 100%);color:#fff;transform:skewX(-14deg);"
+                + "box-shadow:inset -3px 0 0 #fff,0 6px 16px rgba(0,0,0,.55);font:italic 900 19px Roboto;letter-spacing:1.2px;cursor:pointer}"
+                + ".xx-dlc span{display:inline-block;transform:skewX(14deg) scaleX(.86)}"
+                + ".xx-dlc b{display:inline-block;width:16px;height:16px;border:1.6px solid #fff;border-radius:50%;font:700 10px Roboto;"
+                + "line-height:13px;text-align:center;margin-left:10px;vertical-align:2px;font-style:normal}';"
+                + "document.head.appendChild(st);"
+                + "function miss(i){i.style.visibility='hidden';if(i.parentNode)i.parentNode.classList.add('xx-noimg');}"
+                + "document.querySelectorAll('img').forEach(function(i){if(i.complete&&i.naturalWidth===0)miss(i);"
+                + "i.addEventListener('error',function(){miss(i);});});"
+                + "var b=document.createElement('button');b.className='xx-dlc';b.innerHTML='<span>DLC<b>Y</b></span>';"
+                + "b.onclick=function(){if(window.Android&&Android.openSection)Android.openSection('dlc');};"
+                + "document.getElementById('s').appendChild(b);"
+                + "})()", null);
+    }
+
     // ---------------------------------------------------------------------------------------------- page text
 
     private void pushInfo() {
@@ -195,6 +252,7 @@ public class HomeActivity extends Activity {
                 case "saves": page = "SAVES"; break;
                 case "logs": page = "LOGS"; break;
                 case "updates": page = "UPDATES"; break;
+                case "dlc": page = "DLC"; break;
                 default: return;
             }
             runOnUiThread(() -> openLauncher(page, false));
@@ -240,6 +298,9 @@ public class HomeActivity extends Activity {
             case KeyEvent.KEYCODE_BUTTON_B: to = KeyEvent.KEYCODE_ESCAPE; break;
             case KeyEvent.KEYCODE_BUTTON_L1: to = KeyEvent.KEYCODE_PAGE_UP; break;
             case KeyEvent.KEYCODE_BUTTON_R1: to = KeyEvent.KEYCODE_PAGE_DOWN; break;
+            case KeyEvent.KEYCODE_BUTTON_Y:  // Y: the DLC page
+                if (e.getAction() == KeyEvent.ACTION_UP) openLauncher("DLC", false);
+                return true;
             default: return super.dispatchKeyEvent(e);  // the phone's back key: onBackPressed
         }
         if (web != null && e.getRepeatCount() == 0) sendKey(to, e.getAction());
@@ -318,12 +379,36 @@ public class HomeActivity extends Activity {
     private void importPicturesFromDownload() {
         File[] have = imagesDir().listFiles();
         if (have != null && have.length > 0) return;
-        final File zip = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), PICTURE_ZIP);
-        if (!zip.canRead()) return;
         new Thread(() -> {
+            File zip = findPictureZip();
+            if (zip == null) {
+                Log.i(TAG, "[home] no launcher picture zip found in Download (looked for " + PICTURE_ZIP + " or a zip with \"launcher\" in its name)");
+                return;
+            }
             int n = unpackPictures(zip);
+            Log.i(TAG, "[home] " + n + " pictures from " + zip);
             if (n > 0) handler.post(() -> { if (web != null) web.reload(); });
         }, "home-pictures").start();
+    }
+
+    /** WWE2K15_Launcher_WebView.zip in Download (or one folder below), else any zip there with "launcher" in its
+     *  name (e.g. a browser's "WWE2K15_Launcher_WebView (1).zip"). */
+    private File findPictureZip() {
+        File dl = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        File exact = new File(dl, PICTURE_ZIP);
+        if (exact.canRead()) return exact;
+        File best = null;
+        java.util.List<File> dirs = new java.util.ArrayList<>();
+        dirs.add(dl);
+        File[] subs = dl.listFiles(File::isDirectory);
+        if (subs != null) java.util.Collections.addAll(dirs, subs);
+        for (File d : dirs) {
+            File[] zs = d.listFiles((dir, n) -> n.toLowerCase(Locale.ROOT).endsWith(".zip") && n.toLowerCase(Locale.ROOT).contains("launcher"));
+            if (zs == null) continue;
+            for (File z : zs) if (z.canRead() && (best == null || z.lastModified() > best.lastModified())) best = z;
+        }
+        if (best == null) Log.i(TAG, "[home] Download readable: " + dl.canRead());
+        return best;
     }
 
     private int unpackPictures(File zip) {

@@ -86,6 +86,8 @@ public class LauncherActivity extends Activity {
     private TextView statusText;
     private Button playButton;
     private LinearLayout packageList;
+    private LinearLayout dlcList;
+    private TextView dlcCount;
     private LinearLayout backupList;
     private TextView logSessionText;
 
@@ -441,6 +443,20 @@ public class LauncherActivity extends Activity {
         packageList.setOrientation(LinearLayout.VERTICAL);
         files.addView(packageList);
 
+        // ---- DLC
+        currentTab = "DLC";
+        LinearLayout dlc = section(page, "DLC");
+        dlc.addView(text("Add your own WWE 2K15 DLC packages (Xbox 360 content files, usually in a 00000002 folder). "
+                + "You can pick several at once. The game installs them the next time it starts.", 13, DIM));
+        LinearLayout dlcButtons = row();
+        dlcButtons.addView(button("Add DLC\u2026", v -> pick(REQ_PACKAGE, true)));
+        dlc.addView(dlcButtons);
+        dlcCount = text("", 15, TEXT);
+        dlc.addView(dlcCount);
+        dlcList = new LinearLayout(this);
+        dlcList.setOrientation(LinearLayout.VERTICAL);
+        dlc.addView(dlcList);
+
         // ---- GRAPHICS
         currentTab = "GRAPHICS";
         LinearLayout settings = section(page, "Graphics");
@@ -607,9 +623,9 @@ public class LauncherActivity extends Activity {
         l.add(v);
     }
 
-    private static final String[] PAGE_ORDER = {"PLAY", "GRAPHICS", "CONTROLS", "GAME", "SAVES", "LOGS", "UPDATES"};
+    private static final String[] PAGE_ORDER = {"PLAY", "DLC", "GRAPHICS", "CONTROLS", "GAME", "SAVES", "LOGS", "UPDATES"};
     private static final java.util.Map<String, String> PAGE_TITLES = new java.util.HashMap<String, String>() {{
-        put("PLAY", "GAME FILES"); put("GRAPHICS", "GRAPHICS"); put("CONTROLS", "CONTROLS"); put("GAME", "GAME");
+        put("PLAY", "GAME FILES"); put("DLC", "DLC"); put("GRAPHICS", "GRAPHICS"); put("CONTROLS", "CONTROLS"); put("GAME", "GAME");
         put("SAVES", "SAVES"); put("LOGS", "LOGS"); put("UPDATES", "UPDATES");
     }};
     private LinearLayout homeView, pageView;
@@ -1220,6 +1236,19 @@ public class LauncherActivity extends Activity {
             final GameFiles.Package pk = p;
             packageList.addView(listItem(p.kind() + ": " + p.name, "Remove", () ->
                     confirm("Remove " + pk.name + "?", () -> { GameFiles.removePackage(pk); refresh(); })));
+        }
+
+        if (dlcList != null) {
+            dlcList.removeAllViews();
+            int n = 0;
+            for (GameFiles.Package p : GameFiles.packages()) {
+                if (p.type != GameFiles.TYPE_DLC) continue;
+                ++n;
+                final GameFiles.Package pk = p;
+                dlcList.addView(listItem(p.name, "Remove", () ->
+                        confirm("Remove " + pk.name + "?", () -> { GameFiles.removePackage(pk); refresh(); })));
+            }
+            dlcCount.setText(n == 0 ? "No DLC added yet." : n + " DLC package" + (n == 1 ? "" : "s") + " added:");
         }
 
         if (logSessionText != null) {
