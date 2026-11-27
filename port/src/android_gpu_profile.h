@@ -34,7 +34,9 @@ inline const std::vector<KV>& NativeFlags() {
       KV{"gpu_native", "2"}, KV{"gpu_fast_clear", "true"},
       KV{"gpu_native_truth", "true"}, KV{"gpu_native_half2_skip_gpr_draws", "true"},
       KV{"gpu_native_half2", "2"}, KV{"gpu_native_lean_draws", "true"},
-      KV{"gpu_native_trust_geometry_pages", "true"}, KV{"gpu_native_truth_skip_writeback", "true"},
+      // (not gpu_native_trust_geometry_pages: it keeps vertex pages valid without checking them, and WWE 2K15 rewrites
+      // some geometry from the CPU every frame - ring ropes and more - which then drew stale, stretched across the screen)
+      KV{"gpu_native_truth_skip_writeback", "true"},
       KV{"vulkan_merge_adjacent_barriers", "true"}, KV{"gpu_native_gpu_timers", "false"},
       KV{"gpu_native_truth_direct_resolve_scaled", "true"}, KV{"gpu_native_truth_fill_direct", "true"},
       KV{"vulkan_texture_load_direct_unscaled", "true"}, KV{"vulkan_texture_load_direct_unscaled_any_page", "true"},
