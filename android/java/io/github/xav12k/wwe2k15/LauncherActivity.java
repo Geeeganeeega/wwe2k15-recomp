@@ -87,7 +87,25 @@ public class LauncherActivity extends Activity {
     private Button playButton;
     private LinearLayout packageList;
     private LinearLayout dlcList;
-    private TextView dlcCount;
+    private TextView dlcCount, dlcFoundText;
+
+    /** The whole storage is searched for DLC in the background; the folders that hold some go to the game at start. */
+    private void scanDlc() {
+        if (dlcFoundText != null) dlcFoundText.setText("Looking for DLC on your phone\u2026");
+        new Thread(() -> {
+            List<GameFiles.Package> found = GameFiles.scanStorageForDlc();
+            java.util.LinkedHashSet<String> dirs = new java.util.LinkedHashSet<>();
+            StringBuilder names = new StringBuilder();
+            for (GameFiles.Package p : found) {
+                dirs.add(p.file.getParent());
+                names.append("\n\u2022 ").append(p.name);
+            }
+            prefs.edit().putString("dlc_found_dirs", android.text.TextUtils.join("|", dirs)).apply();
+            final String msg = found.isEmpty() ? "No WWE 2K15 DLC found on your phone's storage."
+                    : found.size() + " DLC package" + (found.size() == 1 ? "" : "s") + " found on your phone (installed when the game starts):" + names;
+            runOnUiThread(() -> { if (dlcFoundText != null) dlcFoundText.setText(msg); });
+        }, "dlc-scan").start();
+    }
     private LinearLayout backupList;
     private TextView logSessionText;
 
@@ -447,10 +465,14 @@ public class LauncherActivity extends Activity {
         // ---- DLC
         currentTab = "DLC";
         LinearLayout dlc = section(page, "DLC");
-        dlc.addView(text("Add your own WWE 2K15 DLC packages (Xbox 360 content files, usually in a 00000002 folder). "
-                + "You can pick several at once. The game installs them the next time it starts.", 13, DIM));
+        dlc.addView(text("DLC is found automatically: every WWE 2K15 DLC package anywhere on your phone's storage "
+                + "(Xbox 360 content files, usually in a 00000002 folder) is installed the next time the game starts. "
+                + "You can also add packages by hand.", 13, DIM));
+        dlcFoundText = text("Looking for DLC on your phone\u2026", 14, TEXT);
+        dlc.addView(dlcFoundText);
         LinearLayout dlcButtons = row();
         dlcButtons.addView(button("Add DLC\u2026", v -> pick(REQ_PACKAGE, true)));
+        dlcButtons.addView(button("Search again", v -> scanDlc()));
         dlc.addView(dlcButtons);
         dlcCount = text("", 15, TEXT);
         dlc.addView(dlcCount);
@@ -615,6 +637,7 @@ public class LauncherActivity extends Activity {
 
         setContentView(rootView);
         refresh();
+        scanDlc();
         showHome();
     }
 
@@ -1436,6 +1459,8 @@ public class LauncherActivity extends Activity {
             // Title update and DLC packages: the game unpacks / installs them itself (dlc_install.h).
             a.add("--wwe2k15_dlc_dir=" + GameFiles.dlcDir().getAbsolutePath());
             a.add("--wwe2k15_update_dir=" + GameFiles.updateDir().getAbsolutePath());
+            String found = prefs.getString("dlc_found_dirs", "");
+            if (!found.isEmpty()) a.add("--wwe2k15_dlc_scan_dirs=" + found);  // DLC found anywhere on the storage
             boolean tuPackage = false;
             for (GameFiles.Package p : GameFiles.packages()) if (p.type == GameFiles.TYPE_TITLE_UPDATE) tuPackage = true;
             if (tuPackage || new File(GameFiles.updateDir(), "default.xexp").isFile())

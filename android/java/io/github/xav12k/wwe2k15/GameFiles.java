@@ -210,6 +210,46 @@ final class GameFiles {
         return p;
     }
 
+    /**
+     * Looks through the whole shared storage (needs "All files access") for WWE 2K15 DLC packages, wherever they were
+     * copied: Xbox 360 content files have no extension and start with LIVE / PIRS / CON. Hidden folders and Android/
+     * are skipped; at most 10 folders deep. Returns the packages found (the game installs them from where they are).
+     */
+    static List<Package> scanStorageForDlc() {
+        List<Package> found = new ArrayList<>();
+        File root = android.os.Environment.getExternalStorageDirectory();
+        scanDir(root, 0, found);
+        return found;
+    }
+
+    private static void scanDir(File dir, int depth, List<Package> found) {
+        if (depth > 10) return;
+        File[] items = dir.listFiles();
+        if (items == null) return;
+        for (File f : items) {
+            String n = f.getName();
+            if (n.startsWith(".")) continue;
+            if (f.isDirectory()) {
+                if (depth == 0 && n.equals("Android")) continue;
+                scanDir(f, depth + 1, found);
+            } else if (n.indexOf('.') < 0 && f.length() > 0xB000 && looksLikePackage(f)) {
+                Package p = inspect(f);
+                if (p != null && p.type == TYPE_DLC && p.titleId == TITLE_ID) found.add(p);
+            }
+        }
+    }
+
+    private static boolean looksLikePackage(File f) {
+        byte[] m = new byte[4];
+        try (InputStream in = new FileInputStream(f)) {
+            if (in.read(m) != 4) return false;
+        } catch (IOException e) {
+            return false;
+        }
+        String s = new String(m, StandardCharsets.US_ASCII);
+        return s.equals("LIVE") || s.equals("PIRS") || s.equals("CON ");
+    }
+
     static List<Package> packages() {
         List<Package> list = new ArrayList<>();
         File[] files = dlcDir().listFiles(File::isFile);

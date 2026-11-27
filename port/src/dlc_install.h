@@ -33,6 +33,7 @@
 #include <rex/system/xam/content_manager.h>
 
 REXCVAR_DEFINE_STRING(wwe2k15_dlc_dir, "", "wwe2k15", "Folder with the imported DLC / title update packages");
+REXCVAR_DEFINE_STRING(wwe2k15_dlc_scan_dirs, "", "wwe2k15", "Folders where the launcher found DLC on the phone ('|' between them)");
 REXCVAR_DEFINE_STRING(wwe2k15_update_dir, "", "wwe2k15", "Folder the title update's files are unpacked into");
 
 using rex::X_RESULT;
@@ -177,6 +178,17 @@ inline void Sync(const std::filesystem::path& user_data_root, const std::filesys
   std::error_code ec;
   std::vector<std::filesystem::path> dirs;
   if (!dir_s.empty()) dirs.emplace_back(dir_s);
+  {  // folders the launcher found DLC in, anywhere on the phone's storage ('|' between them)
+    const std::string scan = REXCVAR_GET(wwe2k15_dlc_scan_dirs);
+    size_t start = 0;
+    while (start <= scan.size()) {
+      const size_t end = scan.find('|', start);
+      const std::string one = scan.substr(start, end == std::string::npos ? std::string::npos : end - start);
+      if (!one.empty()) dirs.push_back(std::filesystem::path(one));  // (Android paths are UTF-8)
+      if (end == std::string::npos) break;
+      start = end + 1;
+    }
+  }
   if (!game_root.empty() && std::filesystem::is_directory(game_root, ec)) {
     dirs.push_back(game_root / "dlc");
     dirs.push_back(game_root / "00000002");
