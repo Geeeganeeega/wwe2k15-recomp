@@ -61,11 +61,11 @@ inline void OnPresent() {
 
 void Wwe2k15AndroidOnPresent() { wwe2k15::android_frame::OnPresent(); }
 
-extern "C" JNIEXPORT jlong JNICALL Java_io_github_xav12k_wwe2k15_GameActivity_nativeFrameCount(JNIEnv*, jclass) {
+extern "C" JNIEXPORT jlong JNICALL Java_io_github_xav12k_wwe2k15_WWE2K15Activity_nativeFrameCount(JNIEnv*, jclass) {
   static bool logged = false;
   if (!logged) {
     logged = true;
-    REXLOG_INFO("[wwe2k15] FPS overlay is reading the frame counter");
+    REXLOG_INFO("[wwe2k15] loading screen is reading the frame counter");
   }
   return static_cast<jlong>(g_wwe2k15_present_count.load(std::memory_order_relaxed));
 }

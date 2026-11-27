@@ -61,10 +61,92 @@ public class WWE2K15Activity extends SDLActivity {
         if (mSurface != null) mSurface.setZOrderOnTop(true);
         // On-screen touch controls (launcher setting; hidden while a controller is connected by default).
         touch = TouchControls.install(this);
+        showLoading();
+    }
+
+    // ---- "loading" note: the game needs some seconds (shaders, files) before its first picture. Without a note the
+    // screen stays black and players leave the app; Android then closes the game in the background.
+
+    private static native long nativeFrameCount();
+
+    private android.widget.TextView loading;
+    private final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private long loadingStart;
+
+    private void showLoading() {
+        android.widget.TextView t = new android.widget.TextView(this);
+        t.setText("LOADING WWE 2K15\u2026\nThe first start takes a little longer. Please wait.");
+        t.setTextColor(0xFFFFFFFF);
+        t.setTextSize(16);
+        t.setGravity(android.view.Gravity.CENTER);
+        t.setTypeface(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD_ITALIC));
+        t.setShadowLayer(12, 0, 0, 0xFFE3141C);
+        t.setBackgroundColor(0xFF140002);
+        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_PANEL,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                android.graphics.PixelFormat.TRANSLUCENT);
+        lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        final android.view.View decor = getWindow().getDecorView();
+        decor.post(() -> {
+            try {
+                lp.token = decor.getWindowToken();
+                getWindowManager().addView(t, lp);
+                loading = t;
+                loadingStart = android.os.SystemClock.uptimeMillis();
+                handler.postDelayed(this::checkLoading, 250);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "loading note: " + e);
+            }
+        });
+    }
+
+    private void checkLoading() {
+        if (loading == null) return;
+        long frames = 0;
+        try {
+            frames = nativeFrameCount();
+        } catch (Throwable ignored) {  // the game's library not loaded yet
+        }
+        long waited = android.os.SystemClock.uptimeMillis() - loadingStart;
+        if (frames >= 20 || waited > 180000) {
+            hideLoading();
+            return;
+        }
+        int dots = (int) (waited / 500 % 4);
+        loading.setText("LOADING WWE 2K15" + "...".substring(0, dots) + "\nThe first start takes a little longer. Please wait.");
+        handler.postDelayed(this::checkLoading, 250);
+    }
+
+    private void hideLoading() {
+        if (loading == null) return;
+        try {
+            getWindowManager().removeView(loading);
+        } catch (RuntimeException ignored) {
+        }
+        loading = null;
+    }
+
+    // ---- back: an edge swipe or the back key closes the game only when pressed twice within 2 seconds.
+    private long lastBack;
+
+    @Override
+    public void onBackPressed() {
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - lastBack < 2000) {
+            super.onBackPressed();
+            return;
+        }
+        lastBack = now;
+        android.widget.Toast.makeText(this, "Press back again to quit the game", android.widget.Toast.LENGTH_SHORT).show();
     }
 
     @Override
     protected void onDestroy() {
+        handler.removeCallbacksAndMessages(null);
+        hideLoading();
         if (touch != null) touch.stop();
         touch = null;
         super.onDestroy();
