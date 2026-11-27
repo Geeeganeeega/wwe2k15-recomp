@@ -1,0 +1,64 @@
+# Builds the `rexglue` recompiler for ARM64 Linux - the same kind of system as Termux's Ubuntu on the phone - from the
+# exact SDK the APK uses (upstream ReXGlue + patches/rexglue-sdk/full), and publishes it as the "rexglue-tool" release
+# of this repository. tools/codegen/phone_all.sh downloads it instead of compiling it on the phone (seconds instead of
+# 30-60 minutes). The tool holds no game data: it only reads the player's own default.xex on the phone.
+name: rexglue tool (ARM64)
+
+on:
+  push:
+    branches: [android]
+    paths:
+      - patches/rexglue-sdk/**
+      - tools/android/env.sh
+      - tools/codegen/build_rexglue.sh
+      - .github/workflows/rexglue-tool.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rexglue-tool
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q clang lld cmake ninja-build python3 pkg-config \
+            libx11-dev libxcb1-dev libx11-xcb-dev libxrandr-dev libxkbcommon-dev libwayland-dev
+
+      - name: Build rexglue (same script as on the phone)
+        run: CC=clang CXX=clang++ WORK="$PWD/out/host" tools/codegen/build_rexglue.sh
+
+      - name: Package (the tool + the SDK libraries it loads, and the patch set it was built from)
+        run: |
+          set -euo pipefail
+          TOOL="$(find out/host/sdk-build -type f -name rexglue -perm -u+x | head -1)"
+          PKG=out/rexglue-linux-arm64
+          mkdir -p "$PKG/lib"
+          cp "$TOOL" "$PKG/rexglue.bin"
+          # every library it loads from the build tree (librexruntime.so and friends)
+          ldd "$TOOL" | awk '/=> \// {print $3}' | grep "$PWD/out/" | xargs -r -I{} cp -L {} "$PKG/lib/" || true
+          printf '#!/bin/sh\nd="$(cd "$(dirname "$0")" && pwd)"\nLD_LIBRARY_PATH="$d/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" exec "$d/rexglue.bin" "$@"\n' > "$PKG/rexglue"
+          chmod +x "$PKG/rexglue"
+          cat patches/rexglue-sdk/full/*.diff tools/android/env.sh | sha256sum | cut -c1-64 > "$PKG/sdk-patches.sha"
+          ls -la "$PKG" "$PKG/lib"
+          "$PKG/rexglue" --help | head -5
+          tar -C out -czf out/rexglue-linux-arm64.tar.gz rexglue-linux-arm64
+
+      - name: Publish (release "rexglue-tool")
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete rexglue-tool --yes --cleanup-tag 2>/dev/null || true
+          gh release create rexglue-tool out/rexglue-linux-arm64.tar.gz \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "rexglue recompiler for ARM64 Linux (Termux Ubuntu)" \
+            --notes "Built from commit ${GITHUB_SHA::7}. Used by tools/codegen/phone_all.sh. Contains no game data."
