@@ -18,12 +18,13 @@ TOOL="${REXGLUE:-$(find "$ROOT/out/host/rexglue-sdk-src/out" "$ROOT/out/host/sdk
 XEX="$GAME/default.xex"
 if [ ! -f "$GAME/default.xexp" ]; then
   if [ -z "$TU_PKG" ]; then
-    # Look for the title update package: tu* files first, then any Xbox 360 package (LIVE / PIRS / CON).
-    for dir in "$GAME" "$(dirname "$GAME")"; do
-      for f in "$dir"/tu* "$dir"/TU* "$dir"/*; do
-        [ -f "$f" ] || continue
-        case "$(head -c 4 "$f" 2>/dev/null)" in LIVE|PIRS|"CON ") TU_PKG="$f"; break 2;; esac
-      done
+    # The title update package: a WWE 2K15 (545408B6) package of content type 000B0000, in the game folder or the one
+    # above it (files named tu* first). Other packages there (AvatarAssetPack, DLC) are not it.
+    UP="$(dirname "$GAME")"
+    for f in "$GAME"/tu* "$GAME"/TU* "$UP"/tu* "$UP"/TU* "$GAME"/* "$UP"/*; do
+      [ -f "$f" ] || continue
+      case "$(head -c 4 "$f" 2>/dev/null)" in LIVE|PIRS|"CON ") ;; *) continue;; esac
+      if python3 "$ROOT/tools/codegen/stfs_extract.py" "$f" --is-title-update 545408B6; then TU_PKG="$f"; break; fi
     done
   fi
   [ -n "$TU_PKG" ] || { echo "Title Update 4 not found: put tu00000004_00000000 (or default.xexp) next to the game folder" >&2; exit 2; }

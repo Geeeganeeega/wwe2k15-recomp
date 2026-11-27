@@ -111,6 +111,14 @@ class Stfs:
 def main():
     if len(sys.argv) < 3:
         raise SystemExit(__doc__)
+    if sys.argv[2] == "--is-title-update":
+        # exit 0 when the file is a title update package (content type 000B0000), of title argv[3] if given
+        try:
+            pkg = Stfs(sys.argv[1])
+        except SystemExit:
+            sys.exit(1)
+        want = int(sys.argv[3], 16) if len(sys.argv) > 3 else None
+        sys.exit(0 if pkg.content_type == 0x000B0000 and (want is None or pkg.title_id == want) else 1)
     pkg = Stfs(sys.argv[1])
     files = pkg.entries()
     if sys.argv[2] == "--list":
