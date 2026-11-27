@@ -121,11 +121,30 @@ inline void TurnOn(uint8_t* base, const char* why) {
   REXLOG_INFO("[wwe2k15][step30] on ({}): game word {}, updates per second now {}", why, g,
               g_effective.load(std::memory_order_relaxed) ? g_effective.load(std::memory_order_relaxed) : g);
 }
-// Once per presented frame: "always" turns on as soon as the timing struct is set up; "automatic" after two
-// 90-frame windows slower than wwe2k15_step30_auto_ms at the game's 60 (slow motion), for the rest of the session.
+inline void TurnOff(uint8_t* base) {
+  if (!g_on.exchange(false, std::memory_order_relaxed)) return;
+  const uint32_t g = g_game_word.load(std::memory_order_relaxed);
+  WriteFields(base, g, false);
+  REXLOG_INFO("[wwe2k15][step30] off: trying the game's {} again", g);
+}
+// Once per presented frame: "always" turns on as soon as the timing struct is set up. "Automatic" turns on after
+// three 90-frame windows slower than wwe2k15_step30_auto_ms at the game's 60 (slow motion); loading pauses (a frame
+// gap over 100 ms) are left out, so menus and loading screens do not switch it on. While on, it tries 60 again
+// after 20 s, then 40, 80, 160, 300 s (each time the phone still cannot hold 60, it waits twice as long); a phone
+// that holds 60 again stays there.
 inline void OnPresent(uint8_t* base, uint64_t now_us) {
   const int32_t mode = REXCVAR_GET(wwe2k15_step30);
-  if (!base || mode == 0 || g_on.load(std::memory_order_relaxed)) return;
+  if (!base || mode == 0) return;
+  static uint64_t on_since = 0, retry_us = 20000000;
+  static bool auto_on = false;
+  if (g_on.load(std::memory_order_relaxed)) {
+    if (mode == 2 && auto_on && now_us - on_since > retry_us) {
+      TurnOff(base);
+      auto_on = false;
+      retry_us = std::min<uint64_t>(retry_us * 2, 300000000);
+    }
+    return;
+  }
   const uint32_t w = Load(base, kWord);
   if (w != 60 && w != 50) return;  // not set up yet, or a 30 fps scene (it keeps its own rate)
   if (!g_game_word.load(std::memory_order_relaxed)) g_game_word.store(w, std::memory_order_relaxed);
@@ -133,18 +152,27 @@ inline void OnPresent(uint8_t* base, uint64_t now_us) {
     TurnOn(base, "always");
     return;
   }
-  static uint64_t last = 0, sum = 0;
+  static uint64_t last = 0, sum = 0, off_since = 0;
   static uint32_t frames = 0, slow = 0;
-  if (last) sum += now_us - last, ++frames;
+  if (!off_since) off_since = now_us;
+  if (last) {
+    const uint64_t d = now_us - last;
+    if (d < 100000) sum += d, ++frames;  // a longer gap is a loading pause, not the game's pace
+  }
   last = now_us;
   if (frames < 90) return;
   const double avg_ms = sum / 1000.0 / frames;
   sum = 0, frames = 0;
   slow = avg_ms > REXCVAR_GET(wwe2k15_step30_auto_ms) ? slow + 1 : 0;
-  if (slow >= 2) {
+  if (slow == 0 && now_us - off_since > 30000000) retry_us = 20000000;  // held 60 for 30 s: back to quick retries
+  if (slow >= 3) {
     REXLOG_INFO("[wwe2k15][step30] the game cannot hold its 60 ({:.1f} ms per frame): it would run in slow motion",
                 avg_ms);
+    slow = 0;
     TurnOn(base, "automatic");
+    auto_on = true;
+    on_since = now_us;
+    off_since = 0;
   }
 }
 }  // namespace wwe2k15::step30
