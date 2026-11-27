@@ -31,6 +31,8 @@ namespace wwe2k15::perf {
 // Thermal guard: while the phone's thermal headroom (Android's forecast: 1.0 = throttling) stays high, frames are held
 // to 30 per second; back to normal once it has cooled. Read once a second (the system wants at most one call a second).
 inline std::atomic<bool> g_thermal_cap{false};
+// 0 = smooth (the even-rate cap below), 1 = as fast as possible (only the 60 limit): more frames, uneven timing.
+REXCVAR_DEFINE_INT32(wwe2k15_pacing, 0, "wwe2k15", "Frame pacing: 0 smooth (even rates: 60 / 40 / 30), 1 as fast as possible");
 inline std::atomic<float> g_thermal_headroom{-1.f};
 
 // What LimitFrame decided, for the "[wwe2k15][fps]" log line (android_frame.h).
@@ -224,7 +226,7 @@ inline void LimitFrame(uint32_t game_fps = 60) {
       else if (best <= target) up_votes = 0;
     }
   }
-  double rate = std::min<double>(limit, target);
+  double rate = REXCVAR_GET(wwe2k15_pacing) == 1 ? double(limit) : std::min<double>(limit, target);
   g_even_rate.store(int(rate + 0.5), std::memory_order_relaxed);
   if (game_fps == 30 || user == 30 || hot) rate = 30;
   const auto period = std::chrono::nanoseconds(static_cast<long long>(1e9 / rate));

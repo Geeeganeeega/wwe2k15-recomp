@@ -476,6 +476,8 @@ public class LauncherActivity extends Activity {
         settings.addView(button("Add GPU driver (.zip)…", v -> pick(REQ_DRIVER, false)), wrap(dp(4)));
         settings.addView(checkbox("Sharper upscaling (SGSR)", prefs.getBoolean("upscaler", false),
                 c -> prefs.edit().putBoolean("upscaler", c).apply()));
+        settings.addView(checkbox("Fastest frame rate: no even-rate smoothing (e.g. 45-55 FPS instead of a steady 40, "
+                + "less even motion)", prefs.getBoolean("pacing_fast", false), c -> prefs.edit().putBoolean("pacing_fast", c).apply()));
         settings.addView(checkbox("Keep the phone cooler: 30 FPS while the phone reports it is getting hot",
                 prefs.getBoolean("thermal_guard", true), c -> prefs.edit().putBoolean("thermal_guard", c).apply()));
         settings.addView(checkbox("Frame generation: an in-between picture for every frame (smoother, e.g. 30 shows as 60; "
@@ -1452,6 +1454,7 @@ public class LauncherActivity extends Activity {
             if (prefs.getBoolean("upscaler", false)) a.add("--present_effect=sgsr");
             a.add("--present_frame_generation=" + prefs.getBoolean("frame_gen", false));
             a.add("--wwe2k15_thermal_guard=" + prefs.getBoolean("thermal_guard", true));
+            a.add("--wwe2k15_pacing=" + (prefs.getBoolean("pacing_fast", false) ? 1 : 0));
             a.add("--present_letterbox=" + !prefs.getBoolean("stretch", false));
             a.add("--wwe2k15_show_fps=" + prefs.getBoolean("show_fps", false));
             a.add("--wwe2k15_big_cores=" + prefs.getBoolean("big_cores", true));
