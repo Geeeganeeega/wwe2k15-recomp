@@ -69,7 +69,7 @@ public class LauncherActivity extends Activity {
             "30 FPS at real speed (weaker phones, cooler, longer battery)",
             "Original: 60 FPS matches, 30 FPS entrances"};
     // port/src/android_gpu_profile.h: the WWE 2K14 port's NATIVE renderer, or the SDK's standard Xenos emulation.
-    private static final String[] RENDERER_LABELS = {"NATIVE (from WWE 2K14, faster)", "Standard (safest, if NATIVE draws something wrong)"};
+    private static final String[] RENDERER_LABELS = {"NATIVE (faster)", "Standard (safest, if NATIVE draws something wrong)"};
 
     // WWE 2K15 look: the WWE '13 launcher's layout in deep red, the game's bright red, white bold capitals.
     private static final int BG = 0xFF1A0306;
@@ -502,9 +502,6 @@ public class LauncherActivity extends Activity {
                 + "less even motion)", prefs.getBoolean("pacing_fast", false), c -> prefs.edit().putBoolean("pacing_fast", c).apply()));
         settings.addView(checkbox("Keep the phone cooler: 30 FPS while the phone reports it is getting hot",
                 prefs.getBoolean("thermal_guard", true), c -> prefs.edit().putBoolean("thermal_guard", c).apply()));
-        settings.addView(checkbox("Frame generation: an in-between picture for every frame (smoother, e.g. 30 shows as 60; "
-                + "controls stay at the game's speed, fast motion can smear a little)", prefs.getBoolean("frame_gen", false),
-                c -> prefs.edit().putBoolean("frame_gen", c).apply()));
         settings.addView(checkbox("Stretch the picture to fill the screen", prefs.getBoolean("stretch", false),
                 c -> prefs.edit().putBoolean("stretch", c).apply()));
         settings.addView(checkbox("Show an FPS counter in the game", prefs.getBoolean("show_fps", false),
@@ -1477,7 +1474,6 @@ public class LauncherActivity extends Activity {
             a.add("--wwe2k15_fps_limit=0");
             a.add("--wwe2k15_renderer=" + (prefs.getInt("renderer", 0) == 0 ? 1 : 0));
             if (prefs.getBoolean("upscaler", false)) a.add("--present_effect=sgsr");
-            a.add("--present_frame_generation=" + prefs.getBoolean("frame_gen", false));
             a.add("--wwe2k15_thermal_guard=" + prefs.getBoolean("thermal_guard", true));
             a.add("--wwe2k15_pacing=" + (prefs.getBoolean("pacing_fast", false) ? 1 : 0));
             a.add("--present_letterbox=" + !prefs.getBoolean("stretch", false));
