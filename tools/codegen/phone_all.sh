@@ -43,9 +43,13 @@ git pull -q --ff-only "$URL" main || echo "(could not update; going on with this
 
 say "3/6 The recompiler (rexglue)"
 TOOL="$(find "$HERE/out/host/sdk-build" -type f -name rexglue -perm -u+x 2>/dev/null | head -1 || true)"
-if [ -z "$TOOL" ] || [ -n "${REBUILD:-}" ]; then
+# Rebuilt whenever the SDK patches change (a recompiler from other patches writes code the APK's runtime won't match).
+STAMP="$HERE/out/host/sdk-patches.sha"
+WANT="$(cat "$HERE"/patches/rexglue-sdk/full/*.diff "$HERE/tools/android/env.sh" | sha256sum | cut -c1-64)"
+if [ -z "$TOOL" ] || [ -n "${REBUILD:-}" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$WANT" ]; then
   rm -rf "$HERE/out/host/sdk-build"
   CC=clang CXX=clang++ "$HERE/tools/codegen/build_rexglue.sh"
+  echo "$WANT" > "$STAMP"
 else
   echo "already built: $TOOL"
 fi
