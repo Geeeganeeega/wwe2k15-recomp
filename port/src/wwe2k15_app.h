@@ -214,7 +214,7 @@ class Wwe2k15App : public rex::ReXApp {
     // Logs every pointer in the game's data into code no function covers ("[wwe2k15][scan] ..."): each one ends the
     // game with "Call to invalid or unregistered function" otherwise (see BUILD.md).
     wwe2k15::ScanForUnregisteredFunctionPointers(runtime(), PPCImageConfig, 5000);
-    wwe2k15::dlc::Sync(user_data_root());
+    wwe2k15::dlc::Sync(user_data_root(), game_data_root());
     wwe2k15::dlc::MountCache(user_data_root());
     wwe2k15::dlc::ApplyTitleUpdateVersion();
   }

@@ -165,18 +165,29 @@ inline void UnpackTitleUpdate() {
   }
 }
 
-inline void Sync(const std::filesystem::path& user_data_root) {
+// game_root: the game folder (not a disc image). DLC is also taken from where a console copy keeps it, like the PC
+// port: <game>/dlc, <game>/00000002 and, for a game folder inside the title's folder (545408B6/<game>), the title
+// folder's 00000002 - so DLC copied next to the game works without importing it in the launcher.
+inline void Sync(const std::filesystem::path& user_data_root, const std::filesystem::path& game_root = {}) {
   const std::string dir_s = REXCVAR_GET(wwe2k15_dlc_dir);
-  if (dir_s.empty()) return;
   auto* kernel = REX_KERNEL_STATE();
   auto* content = kernel ? kernel->content_manager() : nullptr;
   if (!content) return;
-  const std::filesystem::path dir = dir_s;
   const uint32_t title_id = kernel->title_id();
   std::error_code ec;
+  std::vector<std::filesystem::path> dirs;
+  if (!dir_s.empty()) dirs.emplace_back(dir_s);
+  if (!game_root.empty() && std::filesystem::is_directory(game_root, ec)) {
+    dirs.push_back(game_root / "dlc");
+    dirs.push_back(game_root / "00000002");
+    dirs.push_back(game_root.parent_path() / "00000002");
+  }
   std::set<std::string> wanted;  // the content folder names of the enabled DLC
   int installed = 0, present = 0, failed = 0, removed = 0;
 
+  for (const auto& dir : dirs) {
+  if (!std::filesystem::is_directory(dir, ec)) continue;
+  REXLOG_INFO("[wwe2k15][dlc] looking for packages in {}", rex::path_to_utf8(dir));
   for (const auto& it : std::filesystem::directory_iterator(dir, ec)) {
     std::error_code fec;
     if (!it.is_regular_file(fec) || !HasStfsMagic(it.path())) continue;
@@ -229,6 +240,7 @@ inline void Sync(const std::filesystem::path& user_data_root) {
       ++failed;
     }
   }
+  }  // dirs
 
   // Installed DLC whose package was deleted or disabled: remove it, so the game no longer sees it.
   const auto installed_dir = user_data_root / "0000000000000000" / fmt::format("{:08X}", title_id) / "00000002";
