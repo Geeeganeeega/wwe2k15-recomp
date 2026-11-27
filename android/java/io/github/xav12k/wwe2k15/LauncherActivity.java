@@ -865,31 +865,61 @@ public class LauncherActivity extends Activity {
 
     // ------------------------------------------------------------------------------------------ logs
 
-    // The game's newest log (<files>/logs): a button to save it to Downloads, to send it on when something breaks.
+    // "Save logs": one zip in Downloads with the game's logs (<files>/logs), Android's log for this app (it shows why
+    // the game stopped when that happened before its own log started) and the start settings. Always shown.
     private void addLogNotice(LinearLayout page) {
-        File[] logs = new File(root, "logs").listFiles((d, n) -> n.endsWith(".log") || n.endsWith(".txt"));
-        if (logs == null || logs.length == 0) return;
-        File newest = logs[0];
-        for (File f : logs) if (f.lastModified() > newest.lastModified()) newest = f;
-        final File log = newest;
         LinearLayout buttons = row();
-        buttons.addView(button("Save the last game log to Downloads", v -> {
-            try {
-                android.content.ContentValues cv = new android.content.ContentValues();
-                cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, "WWE2K15-" + log.getName());
-                cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "text/plain");
-                Uri uri = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
-                try (OutputStream o = getContentResolver().openOutputStream(uri);
-                     InputStream i = new java.io.FileInputStream(log)) {
-                    GameFiles.copyStream(i, o);
-                }
-                toastDialog("Saved to Downloads as WWE2K15-" + log.getName());
-            } catch (Exception e) {
-                toastDialog("Couldn't save it: " + e.getMessage());
-            }
-        }));
+        buttons.addView(button("Save logs to Downloads (send them when something breaks)", v -> saveLogs()));
         page.addView(buttons, wrap(dp(4)));
         tag(buttons);
+    }
+
+    private void saveLogs() {
+        String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.ROOT).format(new java.util.Date());
+        String name = "WWE2K15-logs-" + stamp + ".zip";
+        try {
+            android.content.ContentValues cv = new android.content.ContentValues();
+            cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name);
+            cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/zip");
+            Uri uri = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+            int files = 0;
+            try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(getContentResolver().openOutputStream(uri))) {
+                File[] logs = new File(root, "logs").listFiles(File::isFile);
+                if (logs != null) {
+                    java.util.Arrays.sort(logs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                    for (int n = 0; n < Math.min(logs.length, 5); ++n) files += addZip(z, logs[n], "logs/" + logs[n].getName());
+                }
+                files += addZip(z, new File(root, "launch_options.txt"), "launch_options.txt");
+                // Android's log for this app (its own entries: SDL, the game's native messages, crashes it saw)
+                try {
+                    Process p = Runtime.getRuntime().exec(new String[] {"logcat", "-d", "-v", "threadtime", "-t", "20000"});
+                    z.putNextEntry(new java.util.zip.ZipEntry("logcat.txt"));
+                    try (InputStream in = p.getInputStream()) { GameFiles.copyStream(in, z); }
+                    z.closeEntry();
+                    ++files;
+                } catch (Exception ignored) {
+                }
+                z.putNextEntry(new java.util.zip.ZipEntry("phone.txt"));
+                String info = "device: " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + "\nandroid: "
+                        + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")\nsoc: "
+                        + (android.os.Build.VERSION.SDK_INT >= 31 ? android.os.Build.SOC_MODEL : "?") + "\napp: "
+                        + Updater.currentVersion(this) + "\ngame: " + prefs.getString("game_path", "(copy in app)")
+                        + "\nall files access: " + hasAllFiles() + "\n";
+                z.write(info.getBytes("UTF-8"));
+                z.closeEntry();
+            }
+            toastDialog("Saved to Downloads: " + name + " (" + files + " files). Send that file.");
+        } catch (Exception e) {
+            toastDialog("Couldn't save the logs: " + e.getMessage());
+        }
+    }
+
+    private static int addZip(java.util.zip.ZipOutputStream z, File f, String name) throws java.io.IOException {
+        if (!f.isFile()) return 0;
+        z.putNextEntry(new java.util.zip.ZipEntry(name));
+        try (InputStream in = new java.io.FileInputStream(f)) { GameFiles.copyStream(in, z); }
+        z.closeEntry();
+        return 1;
     }
 
     // ------------------------------------------------------------------------------------------ long operations
