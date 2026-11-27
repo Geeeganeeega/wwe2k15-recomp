@@ -55,6 +55,7 @@ public class LauncherActivity extends Activity {
     private static final int REQ_BACKGROUND = 11;
     private static final int REQ_SPLASH = 12;
     private static final int REQ_TILE_IMAGE = 13;
+    private static final int REQ_PICTURE_ZIP = 14;
 
     // Resolution: the draw height on the phone (the SDK draws at 720p x resolution_scale, or lower with
     // gpu_native_truth_draw_height), as in the WWE 2K17 port.
@@ -100,12 +101,35 @@ public class LauncherActivity extends Activity {
 
         boolean openedAsSettings = getIntent() != null && getIntent().getComponent() != null
                 && getIntent().getComponent().getClassName().endsWith("SettingsAlias");
-        if (!openedAsSettings && prefs.getBoolean("skip_launcher", false) && gameReady()) {
+        // Opened from the WebView home screen (HomeActivity): one page, or straight into the game.
+        String openPage = getIntent() != null ? getIntent().getStringExtra(EXTRA_OPEN_PAGE) : null;
+        boolean startNow = getIntent() != null && getIntent().getBooleanExtra(EXTRA_START_GAME, false);
+        fromHome = openPage != null || startNow;
+        if (!fromHome && !openedAsSettings && prefs.getBoolean("skip_launcher", false) && gameReady()) {
             startSoon();
             return;
         }
         buildUi();
+        if (fromHome) {
+            openFromHome(openPage, startNow);
+            return;
+        }
         if (savedInstanceState == null) showSplash();
+    }
+
+    static final String EXTRA_OPEN_PAGE = "open_page";    // "PLAY" (game files), "GRAPHICS", "CONTROLS", "GAME", ...
+    static final String EXTRA_START_GAME = "start_game";  // true: start the game at once (else its PLAY page)
+    private boolean fromHome;
+
+    private void openFromHome(String page, boolean startNow) {
+        if (startNow) {
+            if (gameReady()) {
+                startGame();  // finishes this screen when the game starts
+                return;
+            }
+            page = "PLAY";
+        }
+        showTab(page != null ? page : "PLAY");
     }
 
     // ------------------------------------------------------------------------------------------ start-up screen
@@ -293,8 +317,9 @@ public class LauncherActivity extends Activity {
         rootView.addView(column, new FrameLayout.LayoutParams(-1, -1));
         columnView = column;
         // The home screen itself: the player's own WebView design (assets/launcher/index.html, made by Shadow Xavier).
-        homeWeb = makeHomeWeb();
-        if (homeWeb != null) rootView.addView(homeWeb, 0, new FrameLayout.LayoutParams(-1, -1));
+        // The WebView home screen is its own activity now (HomeActivity); this screen keeps the drawn one for the
+        // settings shortcut (SettingsAlias) only.
+        homeWeb = null;
 
         // -- HOME
         homeView = new LinearLayout(this);
@@ -472,6 +497,13 @@ public class LauncherActivity extends Activity {
         splashButtons.addView(button("Remove", v -> splashFile().delete()));
         look.addView(splashButtons);
         look.addView(text("Tile pictures: on HOME, press and hold a tile to choose its picture; hold the WWE 2K15 title for the background.", 13, DIM));
+        look.addView(text("Or import all pictures at once from your own launcher zip (images/bg_home.jpg, images/tile_play.jpg, tile_files, tile_graphics, tile_controls, tile_game, tile_saves, tile_logs, tile_updates).", 13, DIM));
+        look.addView(button("Import pictures from a zip\u2026", v -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("*/*");
+            startActivityForResult(i, REQ_PICTURE_ZIP);
+        }), wrap(dp(4)));
         look.addView(button("Remove all tile pictures", v -> {
             File[] fs = tileImagesDir().listFiles();
             if (fs != null) for (File f : fs) f.delete();
@@ -711,6 +743,51 @@ public class LauncherActivity extends Activity {
         }
     }
 
+    /** The player's own pictures for HOME, from a zip they pick (any folder; file names as in their WebView design). */
+    private void importPictureZip(Uri uri) {
+        int n = 0;
+        java.util.regex.Pattern names = java.util.regex.Pattern.compile("(?:.*/)?(bg_home|tile_(?:play|files|graphics|controls|game|saves|logs|updates))\\.(?:jpe?g|png|webp)",
+                java.util.regex.Pattern.CASE_INSENSITIVE);
+        try (InputStream in = getContentResolver().openInputStream(uri);
+             java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(in)) {
+            java.util.zip.ZipEntry e;
+            byte[] buf = new byte[65536];
+            tileImagesDir().mkdirs();
+            while ((e = zin.getNextEntry()) != null) {
+                if (e.isDirectory()) continue;
+                java.util.regex.Matcher m = names.matcher(e.getName());
+                if (!m.matches()) continue;
+                String base = m.group(1).toLowerCase(java.util.Locale.ROOT);
+                File dest = base.equals("bg_home") ? backgroundFile() : new File(tileImagesDir(), base + ".jpg");
+                long total = 0;
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(dest)) {
+                    int r;
+                    while ((r = zin.read(buf)) > 0) {
+                        total += r;
+                        if (total > 20L * 1024 * 1024) throw new java.io.IOException("picture too big: " + e.getName());
+                        out.write(buf, 0, r);
+                    }
+                }
+                ++n;
+            }
+        } catch (Exception ex) {
+            toastDialog("Could not read that zip: " + ex.getMessage());
+            return;
+        }
+        if (n == 0) {
+            toastDialog("No pictures found in that zip (expected names like images/tile_play.jpg and images/bg_home.jpg).");
+            return;
+        }
+        if (homeBg != null) {
+            homeBg.picture = loadBackgroundPicture();
+            homeBg.invalidateSelf();
+        }
+        if (homeWeb != null) homeWeb.reload();
+        final int count = n;
+        showHome();
+        handler.postDelayed(() -> pushHomeInfo(count + " pictures added"), 600);
+    }
+
     private void setTileImage(Uri uri) {
         String id = pendingTileImage;
         pendingTileImage = null;
@@ -788,6 +865,10 @@ public class LauncherActivity extends Activity {
     }
 
     private void showHome() {
+        if (fromHome) {  // the home screen is HomeActivity: back to it
+            finish();
+            return;
+        }
         onHome = true;
         if (homeView == null) return;
         if (homeWeb != null) {
@@ -1118,6 +1199,7 @@ public class LauncherActivity extends Activity {
         @Override public int getOpacity() { return android.graphics.PixelFormat.OPAQUE; }
     }
     private void refresh() {
+        prefs.edit().putBoolean("game_ready", gameReady()).apply();  // read by the home screen (HomeActivity)
         File game = gameRoot();
         boolean base = game != null;
         boolean tu = GameFiles.titleUpdatePresent() || (game != null && game.isDirectory() && new File(game, "default.xexp").isFile());
@@ -1486,6 +1568,7 @@ public class LauncherActivity extends Activity {
             case REQ_PICK_FOLDER: useGamePath(uris.get(0), true); break;
             case REQ_BACKGROUND: setBackgroundPicture(uris.get(0)); break;
             case REQ_TILE_IMAGE: setTileImage(uris.get(0)); break;
+            case REQ_PICTURE_ZIP: importPictureZip(uris.get(0)); break;
             case REQ_SPLASH:
                 try {
                     setPictureFile(uris.get(0), splashFile());
@@ -1775,6 +1858,13 @@ public class LauncherActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         Updater.handleStatus(this, intent);
+        String page = intent.getStringExtra(EXTRA_OPEN_PAGE);
+        boolean startNow = intent.getBooleanExtra(EXTRA_START_GAME, false);
+        if ((page != null || startNow) && homeView != null) {
+            setIntent(intent);
+            fromHome = true;
+            openFromHome(page, startNow);
+        }
     }
 
     private TextView text(String s, int sp, int color) {

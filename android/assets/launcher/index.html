@@ -46,18 +46,8 @@
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.tile{opacity:1}}
-
-/* no picture chosen: drawn blood-red art */
-#s{background:radial-gradient(ellipse at 62% 42%,#b3000c 0%,#6a0006 38%,#140002 75%) !important}
-#s::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,transparent 0 22px,rgba(255,40,60,.10) 22px 24px,transparent 24px 60px);mask-image:linear-gradient(90deg,transparent 25%,#000 60%,transparent 95%);-webkit-mask-image:linear-gradient(90deg,transparent 25%,#000 60%,transparent 95%)}
-.tile.noimg{background:linear-gradient(135deg,#8a0012 0%,#3a0006 55%,#140002 100%) !important}
-.tile.noimg::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(120deg,transparent 0 26px,rgba(255,255,255,.07) 26px 28px)}
-.tile.noimg svg{width:44px !important;height:44px !important;right:22px !important;top:16px !important;opacity:.35 !important}
-.tile.noimg.on svg{opacity:.8 !important}
-.toast{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);background:rgba(0,0,0,.75);padding:8px 16px;border-radius:6px;font:500 15px Roboto;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9}
-.toast.show{opacity:1}
 </style></head><body><div id="s">
-<img class="bg" src="images/bg_home.jpg" onerror="this.remove()"><div class="tint"></div><div class="tint2"></div><div class="tint3"></div>
+<img class="bg" src="images/bg_home.jpg"><div class="tint"></div><div class="tint2"></div><div class="tint3"></div>
 <div class="title"><span class="cond">WWE 2K15</span></div>
 <div class="sub">ANDROID &nbsp;·&nbsp; RECOMPILED</div>
 <div class="ready">READY TO PLAY</div>
@@ -65,16 +55,16 @@
 <div class="home"><span class="cond" id="pageName">HOME</span></div>
 <div class="logo"><span class="cond" style="transform-origin:right center">2K15</span></div>
 <div class="made">MADE BY SHADOW XAVIER</div>
-<button class="tile" data-id="play" aria-label="play" style="left:49px;top:243px;animation-delay:0.15s;padding:0;color:inherit;font:inherit"><img class="ph" onerror="this.parentNode.classList.add('noimg');this.remove()" src="images/tile_play.jpg" alt=""><i></i><svg width="50" height="50" viewBox="0 0 50 50"><path d="M5 2l42 23L5 48z" fill="#FFFFFF"/></svg><div class="lab"><span>PLAY</span></div></button>
-<button class="tile" data-id="files" aria-label="files" style="left:287px;top:243px;animation-delay:0.20s;padding:0;color:inherit;font:inherit"><img class="ph" onerror="this.parentNode.classList.add('noimg');this.remove()" src="images/tile_files.jpg" alt=""><i></i><svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#FFFFFF" stroke-width="5"><rect x="3" y="3" width="42" height="42"/><path d="M3 15h42M3 25h42M3 35h42"/></svg><div class="lab"><span>GAME FILES</span></div></button>
-<button class="tile" data-id="graphics" aria-label="graphics" style="left:525px;top:243px;animation-delay:0.25s;padding:0;color:inherit;font:inherit"><img class="ph" onerror="this.parentNode.classList.add('noimg');this.remove()" src="images/tile_graphics.jpg" alt=""><i></i><svg width="50" height="50" viewBox="0 0 50 50" fill="none" stroke="#FFFFFF" stroke-width="5"><path d="M25 3l22 22-22 22L3 25z"/><path d="M25 16l9 9-9 9-9-9z" fill="#FFFFFF"/></svg><div class="lab"><span>GRAPHICS</span></div></button>
-<button class="tile" data-id="controls" aria-label="controls" style="left:763px;top:243px;animation-delay:0.30s;padding:0;color:inherit;font:inherit"><img class="ph" onerror="this.parentNode.classList.add('noimg');this.remove()" src="images/tile_controls.jpg" alt=""><i></i><svg width="58" height="58" viewBox="0 0 58 58"><path d="M20 0h18v20h20v18H38v20H20V38H0V20h20z" fill="#FFFFFF"/><rect x="22" y="22" width="14" height="14" fill="none"/></svg><div class="lab"><span>CONTROLS</span></div></button>
-<button class="tile" data-id="game" aria-label="game" style="left:49px;top:364px;animation-delay:0.35s;padding:0;color:inherit;font:inherit"><img class="ph" onerror="this.parentNode.classList.add('noimg');this.remove()" src="images/tile_game.jpg" alt=""><i></i><svg width="66" height="64" viewBox="0 0 66 64"><path d="M33 2l9.5 21.5L65 25l-17 15 5 23-20-12-20 12 5-23L1 25l22.5-1.5z" fill="#FFFFFF"/></svg><div class="lab"><span>GAME</span></div></button>
-<button class="tile" data-id="saves" aria-label="saves" style="left:287px;top:364px;animation-delay:0.40s;padding:0;color:inherit;font:inherit"><img class="ph" onerror="this.parentNode.classList.add('noimg');this.remove()" src="images/tile_saves.jpg" alt=""><i></i><svg width="50" height="50" viewBox="0 0 50 50" fill="none" stroke="#FFFFFF" stroke-width="5"><path d="M9 14a21 21 0 1 0 8-8"/><path d="M5 4v12h12" stroke-linejoin="round"/></svg><div class="lab"><span>SAVES</span></div></button>
-<button class="tile" data-id="logs" aria-label="logs" style="left:525px;top:364px;animation-delay:0.45s;padding:0;color:inherit;font:inherit"><img class="ph" onerror="this.parentNode.classList.add('noimg');this.remove()" src="images/tile_logs.jpg" alt=""><i></i><svg width="60" height="56" viewBox="0 0 60 56" fill="#FFFFFF"><rect x="0" y="2" width="60" height="8"/><rect x="0" y="24" width="60" height="8"/><rect x="0" y="46" width="60" height="8"/></svg><div class="lab"><span>LOGS</span></div></button>
-<button class="tile" data-id="updates" aria-label="updates" style="left:763px;top:364px;animation-delay:0.50s;padding:0;color:inherit;font:inherit"><img class="ph" onerror="this.parentNode.classList.add('noimg');this.remove()" src="images/tile_updates.jpg" alt=""><i></i><svg width="30" height="56" viewBox="0 0 30 56"><path d="M12 0h6v40h10L15 56 2 40h10z" fill="#FFFFFF"/></svg><div class="lab"><span>UPDATES</span></div></button>
+<button class="tile" data-id="play" aria-label="play" style="left:49px;top:243px;animation-delay:0.15s;padding:0;color:inherit;font:inherit"><img class="ph" src="images/tile_play.jpg" alt=""><i></i><svg width="50" height="50" viewBox="0 0 50 50"><path d="M5 2l42 23L5 48z" fill="#FFFFFF"/></svg><div class="lab"><span>PLAY</span></div></button>
+<button class="tile" data-id="files" aria-label="files" style="left:287px;top:243px;animation-delay:0.20s;padding:0;color:inherit;font:inherit"><img class="ph" src="images/tile_files.jpg" alt=""><i></i><svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="#FFFFFF" stroke-width="5"><rect x="3" y="3" width="42" height="42"/><path d="M3 15h42M3 25h42M3 35h42"/></svg><div class="lab"><span>GAME FILES</span></div></button>
+<button class="tile" data-id="graphics" aria-label="graphics" style="left:525px;top:243px;animation-delay:0.25s;padding:0;color:inherit;font:inherit"><img class="ph" src="images/tile_graphics.jpg" alt=""><i></i><svg width="50" height="50" viewBox="0 0 50 50" fill="none" stroke="#FFFFFF" stroke-width="5"><path d="M25 3l22 22-22 22L3 25z"/><path d="M25 16l9 9-9 9-9-9z" fill="#FFFFFF"/></svg><div class="lab"><span>GRAPHICS</span></div></button>
+<button class="tile" data-id="controls" aria-label="controls" style="left:763px;top:243px;animation-delay:0.30s;padding:0;color:inherit;font:inherit"><img class="ph" src="images/tile_controls.jpg" alt=""><i></i><svg width="58" height="58" viewBox="0 0 58 58"><path d="M20 0h18v20h20v18H38v20H20V38H0V20h20z" fill="#FFFFFF"/><rect x="22" y="22" width="14" height="14" fill="none"/></svg><div class="lab"><span>CONTROLS</span></div></button>
+<button class="tile" data-id="game" aria-label="game" style="left:49px;top:364px;animation-delay:0.35s;padding:0;color:inherit;font:inherit"><img class="ph" src="images/tile_game.jpg" alt=""><i></i><svg width="66" height="64" viewBox="0 0 66 64"><path d="M33 2l9.5 21.5L65 25l-17 15 5 23-20-12-20 12 5-23L1 25l22.5-1.5z" fill="#FFFFFF"/></svg><div class="lab"><span>GAME</span></div></button>
+<button class="tile" data-id="saves" aria-label="saves" style="left:287px;top:364px;animation-delay:0.40s;padding:0;color:inherit;font:inherit"><img class="ph" src="images/tile_saves.jpg" alt=""><i></i><svg width="50" height="50" viewBox="0 0 50 50" fill="none" stroke="#FFFFFF" stroke-width="5"><path d="M9 14a21 21 0 1 0 8-8"/><path d="M5 4v12h12" stroke-linejoin="round"/></svg><div class="lab"><span>SAVES</span></div></button>
+<button class="tile" data-id="logs" aria-label="logs" style="left:525px;top:364px;animation-delay:0.45s;padding:0;color:inherit;font:inherit"><img class="ph" src="images/tile_logs.jpg" alt=""><i></i><svg width="60" height="56" viewBox="0 0 60 56" fill="#FFFFFF"><rect x="0" y="2" width="60" height="8"/><rect x="0" y="24" width="60" height="8"/><rect x="0" y="46" width="60" height="8"/></svg><div class="lab"><span>LOGS</span></div></button>
+<button class="tile" data-id="updates" aria-label="updates" style="left:763px;top:364px;animation-delay:0.50s;padding:0;color:inherit;font:inherit"><img class="ph" src="images/tile_updates.jpg" alt=""><i></i><svg width="30" height="56" viewBox="0 0 30 56"><path d="M12 0h6v40h10L15 56 2 40h10z" fill="#FFFFFF"/></svg><div class="lab"><span>UPDATES</span></div></button>
 
-<div class="toast" id="toast"></div><div class="hint"><span><b>A</b><span class="cond">SELECT</span></span><span><b>B</b><span class="cond">QUIT</span></span><span><span class="cond">← → MOVE</span></span></div>
+<div class="hint"><span><b>A</b><span class="cond">SELECT</span></span><span><b>B</b><span class="cond">QUIT</span></span><span><span class="cond">← → MOVE</span></span></div>
 <div class="ver"><span class="cond" style="transform-origin:right center">v0.1.0-8</span><br><span class="cond" style="transform-origin:right center">ANDROID PORT</span></div>
 </div><script>
 /* ===== WWE 2K15 launcher logic (made by Shadow Xavier) ===== */
@@ -85,20 +75,7 @@ function activate(i){ const t=tiles[i]; t.classList.add('press'); setTimeout(()=
   /* Android bridge: add a JavascriptInterface named "Android" */
   if(window.Android){ if(id==='play'&&Android.launchGame) Android.launchGame(); else if(Android.openSection) Android.openSection(id); }
   else console.log('open',id); }
-tiles.forEach((t,k)=>{
-  /* tap = open (a first tap on another tile also opens it: phones have no hover) */
-  t.addEventListener('click',()=>{ if(t._long){t._long=false;return;} select(k); activate(k); });
-  /* long-press = choose this tile's picture from the phone */
-  let timer=null;
-  t.addEventListener('touchstart',()=>{ timer=setTimeout(()=>{ t._long=true; if(window.Android&&Android.pickImage) Android.pickImage(t.dataset.id); },650); },{passive:true});
-  ['touchend','touchmove','touchcancel'].forEach(ev=>t.addEventListener(ev,()=>clearTimeout(timer),{passive:true}));
-  t.addEventListener('contextmenu',e=>e.preventDefault());
-});
-/* long-press the title or the 2K15 mark = choose the background picture */
-['.title','.logo'].forEach(q=>{ const el=document.querySelector(q); let tm=null;
-  el.addEventListener('touchstart',()=>{ tm=setTimeout(()=>{ if(window.Android&&Android.pickImage) Android.pickImage('bg'); },650); },{passive:true});
-  ['touchend','touchmove','touchcancel'].forEach(ev=>el.addEventListener(ev,()=>clearTimeout(tm),{passive:true})); });
-window.toast=m=>{ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); };
+tiles.forEach((t,k)=>t.addEventListener('click',()=>{ if(sel===k) activate(k); else select(k); }));
 /* Controller / keys: arrows move (also up/down between rows), Enter = A, Escape = B, Q/E = L1/R1 */
 document.addEventListener('keydown',e=>{
   const k=e.key;
@@ -112,7 +89,7 @@ document.addEventListener('keydown',e=>{
 /* Android can update text: setInfo({ready:'READY TO PLAY', version:'v0.1.0-8', page:'HOME'}) */
 window.setInfo=v=>{ if(v.ready) document.querySelector('.ready').textContent=v.ready;
   if(v.page) document.getElementById('pageName').textContent=v.page;
-  if(v.version) document.querySelector('.ver span').textContent=v.version; if(v.toast) toast(v.toast); };
+  if(v.version) document.querySelector('.ver span').textContent=v.version; };
 /* Fit 1088x540 design to any landscape screen */
 function fit(){ const sc=Math.min(innerWidth/1088,innerHeight/540); document.getElementById('s').style.transform=`translate(-50%,-50%) scale(${sc})`; }
 addEventListener('resize',fit); fit(); select(0);

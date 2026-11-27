@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- WWE 2K15 recompiled, Android app. Structure from the WWE '13 Android port (dzepdzep/wwe13-recomp-android):
-     LauncherActivity is the start screen, WWE2K15Activity runs the game, TouchLayoutActivity edits the touch controls.
+     HomeActivity is the start screen (WebView), LauncherActivity holds the settings pages, WWE2K15Activity runs the game, TouchLayoutActivity edits the touch controls.
      versionCode / versionName are overridden by tools/android/build_apk.sh. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.github.xav12k.wwe2k15"
@@ -52,6 +52,14 @@
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
             android:screenOrientation="sensorLandscape"
             android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation"
+            android:exported="true" />
+        <!-- the home screen: Shadow Xavier's WebView design (assets/launcher/index.html); the settings pages stay in
+             LauncherActivity -->
+        <activity android:name="io.github.xav12k.wwe2k15.HomeActivity"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+            android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation"
             android:exported="true">
             <intent-filter>
