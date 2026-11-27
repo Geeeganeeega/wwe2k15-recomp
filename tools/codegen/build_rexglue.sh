@@ -4,7 +4,9 @@
 # plus every patch in patches/rexglue-sdk/full/. Codegen output must come from this exact SDK: the WWE 2K14 patches
 # change what codegen writes (memory fences for ARM, for example), and the APK's runtime expects that.
 #   tools/codegen/build_rexglue.sh        -> out/host/sdk-build/.../rexglue
-# Needs: git, cmake, ninja, clang (or gcc 13+), python3.   apt install git cmake ninja-build clang python3
+# Needs: git, cmake, ninja, clang, python3 and the SDL desktop development packages (the SDK always builds SDL with
+# its X11 / Wayland / audio backends):
+#   apt install git cmake ninja-build clang python3 pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libx11-xcb-dev libxcb1-dev libwayland-dev libwayland-bin wayland-protocols libdecor-0-dev libegl-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libpipewire-0.3-dev libdbus-1-dev libudev-dev
 set -euo pipefail
 if [ "$(uname -o 2>/dev/null)" = "Android" ] || [ -n "${TERMUX_VERSION:-}" ]; then
   cat >&2 <<'MSG'
@@ -38,11 +40,7 @@ echo "applied $(ls "$ROOT"/patches/rexglue-sdk/full/*.diff | wc -l) patches on $
 git -C "$SRC" submodule update --init --recursive --depth 1
 
 cmake -S "$SRC" -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DREXGLUE_ENABLE_TRACY=OFF -DREXGLUE_ENABLE_FIDELITYFX=OFF -DREXGLUE_BUILD_TESTS=OFF \
-  -DSDL_UNIX_CONSOLE_BUILD=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_KMSDRM=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF \
-  -DSDL_ALSA=OFF -DSDL_PULSEAUDIO=OFF -DSDL_PIPEWIRE=OFF -DSDL_JACK=OFF -DSDL_SNDIO=OFF -DSDL_HIDAPI_LIBUSB=OFF
-# (the recompiler never opens a window or plays sound: SDL is built without desktop video / audio backends, so no
-# X11 / Wayland / ALSA development packages are needed)
+  -DREXGLUE_ENABLE_TRACY=OFF -DREXGLUE_ENABLE_FIDELITYFX=OFF -DREXGLUE_BUILD_TESTS=OFF
 cmake --build "$BUILD" --target rexglue -j "$JOBS"
 TOOL="$(find "$BUILD" -type f -name rexglue -perm -u+x | head -1)"
 [ -n "$TOOL" ] || { echo "rexglue was not built" >&2; exit 1; }

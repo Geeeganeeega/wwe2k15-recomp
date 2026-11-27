@@ -60,7 +60,7 @@ if [ "${1:-}" = "--ubuntu-part" ]; then
     fi
   fi
   if [ -z "$REXGLUE" ]; then
-    for p in git cmake ninja-build clang; do dpkg -s "$p" >/dev/null 2>&1 || { apt-get update -q; apt-get install -y -q git cmake ninja-build clang; break; }; done
+    apt-get update -q && apt-get install -y -q git cmake ninja-build clang pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libx11-xcb-dev libxcb1-dev libwayland-dev libwayland-bin wayland-protocols libdecor-0-dev libegl-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libpipewire-0.3-dev libdbus-1-dev libudev-dev
     git config --global --add safe.directory '*'
     STAMP="$HERE/out/host/sdk-patches.sha"
     REXGLUE="$(find "$HERE/out/host/sdk-build" -type f -name rexglue -perm -u+x 2>/dev/null | head -1 || true)"

@@ -31,8 +31,8 @@ jobs:
       - name: Tools
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q clang lld cmake ninja-build python3 pkg-config \
-            libx11-dev libxcb1-dev libx11-xcb-dev libxrandr-dev libxkbcommon-dev libwayland-dev
+          # the SDK always builds SDL with its X11 / Wayland / audio backends: their development packages
+          sudo apt-get install -y -q clang lld cmake ninja-build python3 pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev libx11-xcb-dev libxcb1-dev libwayland-dev libwayland-bin wayland-protocols libdecor-0-dev libegl-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libpipewire-0.3-dev libdbus-1-dev libudev-dev
 
       - name: Build rexglue (same script as on the phone)
         run: CC=clang CXX=clang++ WORK="$PWD/out/host" tools/codegen/build_rexglue.sh
