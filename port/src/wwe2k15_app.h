@@ -67,7 +67,8 @@ REXCVAR_DECLARE(bool, wwe2k15_mods);
 #if defined(_WIN32)
 void InstallWwe2k15CrashReporter();  // crash_report.cpp (Windows only)
 #endif
-void Wwe2k15KbdInit(rex::ui::Window* window);  // text_entry_kbd.cpp: keyboard typing in letter grids
+void Wwe2k15KbdInit(rex::ui::Window* window);
+void Wwe2k15TrueNativeApply();  // tn_hooks.cpp (Android): TRUE NATIVE's SDK settings when it is on  // text_entry_kbd.cpp: keyboard typing in letter grids
 extern std::atomic<uint32_t> g_wwe2k15_fps_x10;
 extern std::atomic<uint32_t> g_wwe2k15_worst_frame_us;
 
@@ -129,6 +130,9 @@ class Wwe2k15App : public rex::ReXApp {
     }
     // After the plugin is loaded: the GPU settings are registered by the plugin's library.
     wwe2k15::gpu_profile::Apply();
+#if defined(__ANDROID__)
+    Wwe2k15TrueNativeApply();  // --wwe2k14_d3d_owned (TRUE NATIVE, off by default): the SDK settings it needs
+#endif
 #endif
 #if defined(SVR_NATIVE_RENDERER)
     // The Xenos plugin's "null" backend keeps the game's D3D command stream moving (fences,
