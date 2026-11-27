@@ -34,6 +34,7 @@ if [ ! -f "$GAME/default.xexp" ]; then
   python3 "$ROOT/tools/codegen/stfs_extract.py" "$TU_PKG" default.xexp "$WORK/default.xexp"
   cp -f "$XEX" "$WORK/default.xex"
   XEX="$WORK/default.xex"
+  GAME="$WORK"  # codegen wants the XEX inside the game root; it only reads the XEX (+ its .xexp) from there
 fi
 
 cd "$ROOT/port"
