@@ -502,6 +502,9 @@ public class LauncherActivity extends Activity {
                 + "less even motion)", prefs.getBoolean("pacing_fast", false), c -> prefs.edit().putBoolean("pacing_fast", c).apply()));
         settings.addView(checkbox("Keep the phone cooler: 30 FPS while the phone reports it is getting hot",
                 prefs.getBoolean("thermal_guard", true), c -> prefs.edit().putBoolean("thermal_guard", c).apply()));
+        settings.addView(spinnerRow("Crowd", new String[] {"Full (drawn in batches: faster, looks the same)",
+                "Lighter (the far half thinned: faster still)", "Off (empty arena: fastest)"},
+                prefs.getInt("crowd", 0), i -> prefs.edit().putInt("crowd", i).apply()));
         settings.addView(checkbox("Stretch the picture to fill the screen", prefs.getBoolean("stretch", false),
                 c -> prefs.edit().putBoolean("stretch", c).apply()));
         settings.addView(checkbox("Show an FPS counter in the game", prefs.getBoolean("show_fps", false),
@@ -1476,6 +1479,12 @@ public class LauncherActivity extends Activity {
             if (prefs.getBoolean("upscaler", false)) a.add("--present_effect=sgsr");
             a.add("--wwe2k15_thermal_guard=" + prefs.getBoolean("thermal_guard", true));
             a.add("--wwe2k15_pacing=" + (prefs.getBoolean("pacing_fast", false) ? 1 : 0));
+            int crowd = prefs.getInt("crowd", 0);  // port/src/crowd_batch.cpp
+            a.add("--wwe2k15_crowd=" + (crowd == 2 ? 0 : crowd == 1 ? 2 : 1));
+            if (crowd == 1) {
+                a.add("--gpu_scene_crowd_cull=2");
+                a.add("--gpu_scene_crowd_thin=100");
+            }
             a.add("--present_letterbox=" + !prefs.getBoolean("stretch", false));
             a.add("--wwe2k15_show_fps=" + prefs.getBoolean("show_fps", false));
             a.add("--wwe2k15_big_cores=" + prefs.getBoolean("big_cores", true));

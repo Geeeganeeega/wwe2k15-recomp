@@ -43,6 +43,7 @@ endif()
 
 if(ANDROID)
     list(APPEND WWE2K15_SOURCES src/resolve_coherency.cpp)  # created superstars / attires: readback while untiling
+    list(APPEND WWE2K15_SOURCES src/crowd_batch.cpp)  # the stands crowd: batched (one draw per group), thinner or hidden
     # A shared library: SDL's Java activity (GameActivity.java) loads libmain.so and calls SDL_main (the SDK's
     # windowed_app_main_sdl.cpp, added by rexglue_configure_target). Same arrangement as the WWE 2K14 / 2K17 ports.
     add_library(wwe2k15 SHARED ${WWE2K15_SOURCES})
