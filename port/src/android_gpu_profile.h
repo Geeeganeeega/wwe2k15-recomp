@@ -77,7 +77,8 @@ inline const std::vector<KV>& NativeFlags() {
       KV{"vulkan_upload_hoist", "2"}, KV{"gpu_skip_noop_draws", "true"},
       // (not present_guest_frames_once: on this app the UI thread then repaints ~165,000 times a second, one big core at 99 %)
       KV{"vulkan_texture_load_eager", "true"}, KV{"vulkan_texture_load_direct_depth", "true"},
-      KV{"gpu_native_frame", "true"}, KV{"gpu_native_frame_answers_lean", "true"},
+      // (gpu_native_frame: launcher switch, off by default - on the Poco F5 every Turnip run and one Qualcomm run ended in
+      // "device lost" within a minute after it came in, and it gave no FPS there)
       // The 2K16 port's "CPU fast path, safe part" and its GPU-wait sleep (cooler than spinning)
       KV{"gpu_type0_block_split", "true"}, KV{"vulkan_reuse_texture_bindings", "true"},
       KV{"vulkan_sampler_param_cache", "true"}, KV{"vulkan_viewport_info_cache", "true"},

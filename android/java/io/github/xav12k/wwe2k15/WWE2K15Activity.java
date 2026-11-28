@@ -35,6 +35,14 @@ public class WWE2K15Activity extends SDLActivity {
         } catch (ErrnoException e) {
             Log.e(TAG, "setenv WWE2K14_FILES_DIR failed", e);
         }
+        // Turnip skin fix (from the WWE 2K16 Android port): Turnip's compiler mishandles the skinning shaders' bone reads
+        // (c[76 + a0]) and wrestlers' skin stretches into spikes; IR3_SHADER_DEBUG=nouboopt avoids it. Only Mesa reads it,
+        // so it is harmless with Qualcomm's drivers. Set before SDL starts the native thread (and the driver loads).
+        try {
+            Os.setenv("IR3_SHADER_DEBUG", "nouboopt", true);
+        } catch (ErrnoException e) {
+            Log.e(TAG, "setenv IR3_SHADER_DEBUG failed", e);
+        }
         super.onCreate(savedInstanceState);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
