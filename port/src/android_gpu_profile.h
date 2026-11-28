@@ -63,6 +63,11 @@ inline const std::vector<KV>& NativeFlags() {
       // From the WWE 2K16 recomp's NATIVE list (src/native_renderer.cpp): submission and waiting settings of the SDK.
       KV{"vulkan_async_submit", "true"}, KV{"vulkan_submit_on_wait", "true"},
       KV{"gpu_type0_bulk_writes", "true"},  // (WWE '13 Android: register ranges in one copy, same results)
+      // Crowd batching (crowd_batch.cpp) needs the repeat-draw merge: the crowd member shaders read their constants per
+      // instance, so a group's members become instances of one host draw (as the WWE '13 Android port sets them).
+      KV{"vulkan_constants_dynamic_offsets", "true"}, KV{"vulkan_repeat_draw_fast", "true"},
+      KV{"vulkan_repeat_draw_merge", "true"},
+      KV{"vulkan_repeat_draw_merge_shaders", "183CC64A4C4E96AC,5344BF064B17B7C2"},
       KV{"vulkan_deferred_descriptor_writes", "true"},  // (not its gpu_wait_reg_mem_spin: busy-waiting heats the phone)
       KV{"vulkan_disk_pipeline_cache", "true"}, KV{"vulkan_vertex_residency_cache_off", "true"},
   };
