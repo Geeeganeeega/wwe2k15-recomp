@@ -17,7 +17,7 @@
 //
 // Session 73 (Jarrod's idea 7 of the third ten, big cores and the performance hints):
 // - The target follows the game's frame rate now (frame_word.h: 33.3 ms with the 30 fps choice and in 30 fps
-//   entrances), as dynamic_res.h's does. With the fixed 16.7 ms a 30 fps frame reported twice the target, and the
+//   entrances). With the fixed 16.7 ms a 30 fps frame reported twice the target, and the
 //   governor held the clocks at the top: heat, then throttling. Re-set the frame the rate changes
 //   (APerformanceHint_updateTargetWorkDuration). An explicit --wwe2k15_android_perf_hint_target_us still wins.
 // - The phone's cores are logged once (each cluster's top clock, from cpufreq), and each thread-set change logs the
@@ -144,7 +144,7 @@ class PerfHint {
     return result == 0;
   }
 
-  // The frame time the game aims for now (frame_word.h, as dynamic_res.h's Target()).
+  // The frame time the game aims for now (frame_word.h,).
   static int64_t TargetNs() {
     const int32_t forced_us = REXCVAR_GET(wwe2k15_android_perf_hint_target_us);
     if (forced_us > 0) return int64_t(std::max(1000, forced_us)) * 1000;

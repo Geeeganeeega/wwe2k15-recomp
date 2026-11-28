@@ -21,7 +21,6 @@
 #include "android_perf.h"
 #include "android_perf_hint.h"
 #include "thread_stats.h"
-#include "dynamic_res.h"
 
 extern std::atomic<uint64_t> g_wwe2k15_present_count;  // framerate_hook.cpp
 bool Wwe2k15SceneAt60();                                // framerate_hook.cpp
@@ -105,8 +104,6 @@ inline void OnPresent() {
   Wwe2k15ResolveCoherencyOnFrame();
   ThermalTick();
   wwe2k15::perf::LimitFrame(game_fps);
-  wwe2k15::dynres::g_controller.OnFrame(wwe2k15::perf::g_last_work_ms.load(std::memory_order_relaxed),
-                                        1000.0 / double(game_fps ? game_fps : 60));
   {  // every 5 s: what the frame rate is and why ("[wwe2k15][fps]" in the log, for FPS reports)
     static auto t0 = std::chrono::steady_clock::now();
     static uint64_t n0 = n;

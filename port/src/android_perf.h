@@ -37,7 +37,7 @@ inline std::atomic<float> g_thermal_headroom{-1.f};
 
 // What LimitFrame decided, for the "[wwe2k15][fps]" log line (android_frame.h).
 inline std::atomic<int> g_even_rate{60};
-inline std::atomic<float> g_last_work_ms{-1.f};  // the last frame's own work (dynamic_res.h)
+inline std::atomic<float> g_last_work_ms{-1.f};  // the last frame's own work (frame log)
 inline std::atomic<float> g_work_p50_ms{0}, g_work_p90_ms{0};
 
 // Called on the thread that later creates the game's threads (they inherit its CPU mask).
