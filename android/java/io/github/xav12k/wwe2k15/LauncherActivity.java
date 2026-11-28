@@ -505,15 +505,6 @@ public class LauncherActivity extends Activity {
                 + "less even motion)", prefs.getBoolean("pacing_fast", false), c -> prefs.edit().putBoolean("pacing_fast", c).apply()));
         settings.addView(checkbox("Keep the phone cooler: 30 FPS while the phone reports it is getting hot",
                 prefs.getBoolean("thermal_guard", true), c -> prefs.edit().putBoolean("thermal_guard", c).apply()));
-        settings.addView(checkbox("TRUE NATIVE (test, NATIVE renderer only): the game's Direct3D calls go straight to our own "
-                + "renderer (from the WWE 2K14 port). Made for Mali GPUs: on Snapdragon / Adreno phones it may show glitches",
-                prefs.getBoolean("true_native", false), c -> prefs.edit().putBoolean("true_native", c).apply()));
-        settings.addView(checkbox("TRUE NATIVE: Snapdragon fix (try this if the picture has stretched streaks)",
-                prefs.getBoolean("tn_adreno", false), c -> prefs.edit().putBoolean("tn_adreno", c).apply()));
-        settings.addView(checkbox("TRUE NATIVE: model fix (wrestlers drawn by the game's own path; turn off only to test)",
-                prefs.getBoolean("tn_skin", true), c -> prefs.edit().putBoolean("tn_skin", c).apply()));
-        settings.addView(checkbox("TRUE NATIVE: blur fix (try this if the whole picture looks blurry)",
-                prefs.getBoolean("tn_blur", false), c -> prefs.edit().putBoolean("tn_blur", c).apply()));
         settings.addView(checkbox("Stretch the picture to fill the screen", prefs.getBoolean("stretch", false),
                 c -> prefs.edit().putBoolean("stretch", c).apply()));
         settings.addView(checkbox("Show an FPS counter in the game", prefs.getBoolean("show_fps", false),
@@ -1489,25 +1480,6 @@ public class LauncherActivity extends Activity {
             a.add("--wwe2k15_thermal_guard=" + prefs.getBoolean("thermal_guard", true));
             a.add("--wwe2k15_pacing=" + (prefs.getBoolean("pacing_fast", false) ? 1 : 0));
             a.add("--wwe2k15_dynamic_res=" + prefs.getBoolean("dynamic_res", true));
-            if (prefs.getInt("renderer", 0) == 0 && prefs.getBoolean("true_native", false)) {
-                // TRUE NATIVE (port/src/tn_hooks.cpp), the same options as the WWE 2K17 port's launcher
-                a.add("--wwe2k14_d3d_owned=true");
-                if (prefs.getBoolean("tn_adreno", false)) {
-                    a.add("--gpu_quirks_mobile_no_gs=true");
-                    a.add("--gpu_quirks_vertex_input_phone=true");
-                }
-                if (prefs.getBoolean("tn_skin", true)) {
-                    // the 2K14 shortcuts for skinned models match 2K14's own shaders: off, so 2K15's models use the general path
-                    for (String f : new String[] {"gpu_native_swap_skip_translation", "gpu_native_swap_skip_translation_pixel",
-                            "gpu_native_skin_once", "gpu_native_skin_with_input", "gpu_native_skin_bind_lean",
-                            "gpu_native_own_crowd_all", "gpu_native_crowd_input"}) a.add("--" + f + "=false");
-                }
-                if (prefs.getBoolean("tn_blur", false)) {
-                    a.add("--gpu_native_post_lite_drop=false");
-                    a.add("--gpu_owned_copy_lean=0");
-                    a.add("--gpu_owned_graph=0");
-                }
-            }
             a.add("--present_letterbox=" + !prefs.getBoolean("stretch", false));
             a.add("--wwe2k15_show_fps=" + prefs.getBoolean("show_fps", false));
             a.add("--wwe2k15_big_cores=" + prefs.getBoolean("big_cores", true));

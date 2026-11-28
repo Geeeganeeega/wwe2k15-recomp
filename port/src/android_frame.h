@@ -26,8 +26,6 @@
 extern std::atomic<uint64_t> g_wwe2k15_present_count;  // framerate_hook.cpp
 bool Wwe2k15SceneAt60();                                // framerate_hook.cpp
 uint32_t Wwe2k15StepEffectiveRate();
-void Wwe2k15TrueNativeFrame(uint64_t frame);     // tn_hooks.cpp: the D3D layer's guest frame counter
-bool Wwe2k15TrueNativeOn();
 void Wwe2k15ResolveCoherencyOnFrame();                // resolve_coherency.cpp                    // framerate_hook.cpp: 30 while the real-time 30 step is on
 
 #include <cmath>
@@ -104,7 +102,6 @@ inline void OnPresent() {
     if (n > 60) wwe2k15::perf_hint::g_perf_hint.OnFrame(std::chrono::duration<double, std::milli>(now - last).count());
     last = now;
   }
-  Wwe2k15TrueNativeFrame(n);
   Wwe2k15ResolveCoherencyOnFrame();
   ThermalTick();
   wwe2k15::perf::LimitFrame(game_fps);

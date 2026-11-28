@@ -10,7 +10,6 @@
 // means the CPU is what is slow: it is undone and no step down is tried for 30 s.
 // --wwe2k15_dynamic_res=true turns it on (the launcher's switch). Logs "[wwe2k15][dynres]" lines.
 #pragma once
-#include <cstdio>
 
 #include <algorithm>
 #include <chrono>
@@ -135,13 +134,7 @@ class Controller {
     step_ = step;
     const int rows = Height(step_);
     const int flag = step_ == 0 ? chosen_flag_ : (rows >= full_ ? 0 : rows);
-    if (rex::cvar::GetFlagByName("wwe2k14_d3d_owned") == "true") {  // TRUE NATIVE: no truth passes, the owned scene pass
-      char ratio[16];
-      std::snprintf(ratio, sizeof(ratio), "%.4f", kSteps[step_]);
-      rex::cvar::SetFlagByName("gpu_native_owned_draw_ratio", ratio);
-    } else {
-      rex::cvar::SetFlagByName("gpu_native_truth_draw_height", std::to_string(flag));
-    }
+    rex::cvar::SetFlagByName("gpu_native_truth_draw_height", std::to_string(flag));
     REXLOG_INFO("[wwe2k15][dynres] {} -> {} rows ({} %; frame work {:.1f} ms, target {:.1f})", old_rows, rows,
                 int(std::lround(kSteps[step_] * 100.0)), avg, target_);
   }
