@@ -53,7 +53,9 @@ inline const std::vector<KV>& NativeFlags() {
       KV{"gpu_native_truth_direct_resolve_depth", "true"}, KV{"gpu_native_truth_direct_resolve_scaled_small", "true"},
       KV{"vulkan_uniform_pool_device_local", "true"}, KV{"vulkan_device_local_upload_min_heap_mb", "128"},
       KV{"gpu_native_truth_host_rt", "true"}, KV{"gpu_native_truth_pass_dont_care", "true"},
-      KV{"gpu_native_truth_color_none", "true"}, KV{"gpu_native_vertex_endian_spec", "true"},
+      KV{"gpu_native_truth_color_none", "true"},
+      // (not gpu_native_vertex_endian_spec: on the WWE 2K16 Android port it caused stretched spikes near the camera, as
+      // gpu_native_trust_geometry_pages did)
       KV{"gpu_native_ps_texture_spec", "true"}, KV{"gpu_native_ps_mul_mode", "2"},
       KV{"gpu_native_ps_implicit_lod", "true"}, KV{"gpu_native_fma", "3"},
       KV{"gpu_native_truth_drop_dead_resolves", "1"}, KV{"gpu_native_vs_mul_mode", "1"},
@@ -76,6 +78,10 @@ inline const std::vector<KV>& NativeFlags() {
       // (not present_guest_frames_once: on this app the UI thread then repaints ~165,000 times a second, one big core at 99 %)
       KV{"vulkan_texture_load_eager", "true"}, KV{"vulkan_texture_load_direct_depth", "true"},
       KV{"gpu_native_frame", "true"}, KV{"gpu_native_frame_answers_lean", "true"},
+      // The 2K16 port's "CPU fast path, safe part" and its GPU-wait sleep (cooler than spinning)
+      KV{"gpu_type0_block_split", "true"}, KV{"vulkan_reuse_texture_bindings", "true"},
+      KV{"vulkan_sampler_param_cache", "true"}, KV{"vulkan_viewport_info_cache", "true"},
+      KV{"gpu_request_textures_skip_unchanged", "true"}, KV{"gpu_wait_reg_mem_sleep_us", "50"},
       KV{"vulkan_deferred_descriptor_writes", "true"},  // (not its gpu_wait_reg_mem_spin: busy-waiting heats the phone)
       KV{"vulkan_disk_pipeline_cache", "true"}, KV{"vulkan_vertex_residency_cache_off", "true"},
   };

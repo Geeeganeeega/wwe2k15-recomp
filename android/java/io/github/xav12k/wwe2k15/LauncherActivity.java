@@ -503,7 +503,7 @@ public class LauncherActivity extends Activity {
         settings.addView(checkbox("Keep the phone cooler: 30 FPS while the phone reports it is getting hot",
                 prefs.getBoolean("thermal_guard", true), c -> prefs.edit().putBoolean("thermal_guard", c).apply()));
         settings.addView(spinnerRow("Crowd", new String[] {"Full (drawn in batches: faster, looks the same)",
-                "Lighter (the far half thinned: faster still)", "Off (empty arena: fastest)"},
+                "Lighter (a fifth of the crowd: faster still)", "Off (empty arena: fastest)"},
                 prefs.getInt("crowd", 0), i -> prefs.edit().putInt("crowd", i).apply()));
         settings.addView(checkbox("Wrestler shadows (the moving shadows on the mat; off is much faster on phones)",
                 prefs.getBoolean("shadows", false), c -> prefs.edit().putBoolean("shadows", c).apply()));
@@ -1492,9 +1492,9 @@ public class LauncherActivity extends Activity {
             }
             int crowd = prefs.getInt("crowd", 0);  // port/src/crowd_batch.cpp
             a.add("--wwe2k15_crowd=" + (crowd == 2 ? 0 : crowd == 1 ? 2 : 1));
-            if (crowd == 1) {
+            if (crowd == 1) {  // the WWE 2K16 Android port's Adreno default: 20 % of the crowd, far members culled
                 a.add("--gpu_scene_crowd_cull=2");
-                a.add("--gpu_scene_crowd_thin=100");
+                a.add("--gpu_scene_crowd_density=20");
             }
             a.add("--present_letterbox=" + !prefs.getBoolean("stretch", false));
             a.add("--wwe2k15_show_fps=" + prefs.getBoolean("show_fps", false));
