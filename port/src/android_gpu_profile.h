@@ -72,7 +72,8 @@ inline const std::vector<KV>& NativeFlags() {
       // uploads a frame made mid-frame, each one ending a render pass, threads at 40-50 %, resolution changing nothing).
       // vulkan_upload_hoist 2 copies those uploads in a stream at the start of the submission instead (1.2.4: back to
       // 45-60 FPS on an Adreno 810, 30-50 passes a frame instead of ~245).
-      KV{"vulkan_upload_hoist", "2"}, KV{"gpu_skip_noop_draws", "true"}, KV{"present_guest_frames_once", "true"},
+      KV{"vulkan_upload_hoist", "2"}, KV{"gpu_skip_noop_draws", "true"},
+      // (not present_guest_frames_once: on this app the UI thread then repaints ~165,000 times a second, one big core at 99 %)
       KV{"vulkan_texture_load_eager", "true"}, KV{"vulkan_texture_load_direct_depth", "true"},
       KV{"gpu_native_frame", "true"}, KV{"gpu_native_frame_answers_lean", "true"},
       KV{"vulkan_deferred_descriptor_writes", "true"},  // (not its gpu_wait_reg_mem_spin: busy-waiting heats the phone)
