@@ -502,6 +502,9 @@ public class LauncherActivity extends Activity {
                 + "less even motion)", prefs.getBoolean("pacing_fast", false), c -> prefs.edit().putBoolean("pacing_fast", c).apply()));
         settings.addView(checkbox("Keep the phone cooler: 30 FPS while the phone reports it is getting hot",
                 prefs.getBoolean("thermal_guard", true), c -> prefs.edit().putBoolean("thermal_guard", c).apply()));
+        settings.addView(checkbox("Snapdragon streak fix (NATIVE): stops the long stretched lines across the ring "
+                + "with the phone's own Adreno driver", prefs.getBoolean("streak_fix", true),
+                c -> prefs.edit().putBoolean("streak_fix", c).apply()));
         settings.addView(checkbox("Stretch the picture to fill the screen", prefs.getBoolean("stretch", false),
                 c -> prefs.edit().putBoolean("stretch", c).apply()));
         settings.addView(checkbox("Show an FPS counter in the game", prefs.getBoolean("show_fps", false),
@@ -1476,6 +1479,12 @@ public class LauncherActivity extends Activity {
             if (prefs.getBoolean("upscaler", false)) a.add("--present_effect=sgsr");
             a.add("--wwe2k15_thermal_guard=" + prefs.getBoolean("thermal_guard", true));
             a.add("--wwe2k15_pacing=" + (prefs.getBoolean("pacing_fast", false) ? 1 : 0));
+            if (prefs.getInt("renderer", 0) == 0 && prefs.getBoolean("streak_fix", true)) {
+                // Adreno streaks: vertices and indices read as real vertex attributes instead of through the 128 MiB
+                // storage window (the SDK's gpu_quirks_vertex_input_phone pair, set directly so it also covers NATIVE)
+                a.add("--gpu_native_vertex_input=2");
+                a.add("--gpu_native_index_no_restart=true");
+            }
             a.add("--present_letterbox=" + !prefs.getBoolean("stretch", false));
             a.add("--wwe2k15_show_fps=" + prefs.getBoolean("show_fps", false));
             a.add("--wwe2k15_big_cores=" + prefs.getBoolean("big_cores", true));
