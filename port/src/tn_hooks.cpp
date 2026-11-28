@@ -12,6 +12,4 @@ void Wwe2k15TrueNativeApply() { wwe2k14::d3d_owned::Apply(); }
 
 bool Wwe2k15TrueNativeOn() { return REXCVAR_GET(wwe2k14_d3d_owned); }
 
-void Wwe2k15TnPresentHook(PPCContext& ctx, uint8_t* base) { Wwe2k15TnPresent(ctx, base); }
-
 void Wwe2k15TrueNativeFrame(uint64_t frame) { wwe2k14::g_guest_frame.store(frame, std::memory_order_relaxed); }

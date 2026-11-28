@@ -353,15 +353,8 @@ void Wwe2k15OnGuestPresent(uint8_t* base) {
 }
 
 #if !defined(SVR_NATIVE_RENDERER)
-#if defined(__ANDROID__)
-void Wwe2k15TnPresentHook(PPCContext& ctx, uint8_t* base);  // tn_hooks.cpp: TRUE NATIVE's present hook (calls the game's)
-#endif
 extern "C" REX_FUNC(sub_82BADF20) {
   Wwe2k15OnGuestPresent(base);
-#if defined(__ANDROID__)
-  Wwe2k15TnPresentHook(ctx, base);
-#else
   __imp__sub_82BADF20(ctx, base);
-#endif
 }
 #endif  // !SVR_NATIVE_RENDERER
