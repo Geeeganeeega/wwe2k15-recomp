@@ -30,7 +30,6 @@
 #include <rex/graphics/half2.h>
 #include <rex/hook.h>
 #include <rex/system/kernel_state.h>
-#include <rex/runtime.h>  // REX_KERNEL_STATE()->emulator() is a complete rex::Runtime here
 
 namespace wwe2k14::half2 {
 
