@@ -67,7 +67,14 @@ inline const std::vector<KV>& NativeFlags() {
       // instance, so a group's members become instances of one host draw (as the WWE '13 Android port sets them).
       KV{"vulkan_constants_dynamic_offsets", "true"}, KV{"vulkan_repeat_draw_fast", "true"},
       KV{"vulkan_repeat_draw_merge", "true"},
-      KV{"vulkan_repeat_draw_merge_shaders", "183CC64A4C4E96AC,5344BF064B17B7C2"},
+      KV{"vulkan_repeat_draw_merge_shaders", "183CC64A4C4E96AC,5344BF064B17B7C2,D5E2FCC9F76BC40C,C1028A64EFCF8229"},
+      // From the WWE 2K16 Android port (NATIVE / NATIVE+ lists; its 1.2.3 had the same pattern as our match logs: ~600
+      // uploads a frame made mid-frame, each one ending a render pass, threads at 40-50 %, resolution changing nothing).
+      // vulkan_upload_hoist 2 copies those uploads in a stream at the start of the submission instead (1.2.4: back to
+      // 45-60 FPS on an Adreno 810, 30-50 passes a frame instead of ~245).
+      KV{"vulkan_upload_hoist", "2"}, KV{"gpu_skip_noop_draws", "true"}, KV{"present_guest_frames_once", "true"},
+      KV{"vulkan_texture_load_eager", "true"}, KV{"vulkan_texture_load_direct_depth", "true"},
+      KV{"gpu_native_frame", "true"}, KV{"gpu_native_frame_answers_lean", "true"},
       KV{"vulkan_deferred_descriptor_writes", "true"},  // (not its gpu_wait_reg_mem_spin: busy-waiting heats the phone)
       KV{"vulkan_disk_pipeline_cache", "true"}, KV{"vulkan_vertex_residency_cache_off", "true"},
   };

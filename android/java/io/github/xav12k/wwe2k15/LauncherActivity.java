@@ -505,6 +505,8 @@ public class LauncherActivity extends Activity {
         settings.addView(spinnerRow("Crowd", new String[] {"Full (drawn in batches: faster, looks the same)",
                 "Lighter (the far half thinned: faster still)", "Off (empty arena: fastest)"},
                 prefs.getInt("crowd", 0), i -> prefs.edit().putInt("crowd", i).apply()));
+        settings.addView(checkbox("Wrestler shadows (the moving shadows on the mat; off is much faster on phones)",
+                prefs.getBoolean("shadows", false), c -> prefs.edit().putBoolean("shadows", c).apply()));
         settings.addView(checkbox("Stretch the picture to fill the screen", prefs.getBoolean("stretch", false),
                 c -> prefs.edit().putBoolean("stretch", c).apply()));
         settings.addView(checkbox("Show an FPS counter in the game", prefs.getBoolean("show_fps", false),
@@ -1479,6 +1481,7 @@ public class LauncherActivity extends Activity {
             if (prefs.getBoolean("upscaler", false)) a.add("--present_effect=sgsr");
             a.add("--wwe2k15_thermal_guard=" + prefs.getBoolean("thermal_guard", true));
             a.add("--wwe2k15_pacing=" + (prefs.getBoolean("pacing_fast", false) ? 1 : 0));
+            a.add("--gpu_dynamic_shadows=" + prefs.getBoolean("shadows", false));
             int crowd = prefs.getInt("crowd", 0);  // port/src/crowd_batch.cpp
             a.add("--wwe2k15_crowd=" + (crowd == 2 ? 0 : crowd == 1 ? 2 : 1));
             if (crowd == 1) {
